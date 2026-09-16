@@ -7,22 +7,12 @@ os disparos, o chat e a oferta. Cada uma tem um lugar exato.
 
 ## Antes de tudo: subir o sistema
 
-1. Um Postgres (Neon, Supabase, Railway — qualquer um com plano grátis serve).
-2. Deploy na Vercel apontando para este repositório.
-3. As cinco variáveis obrigatórias:
+Se o sistema ainda não está no ar, comece pelo **[GUIA-DEPLOY.md](GUIA-DEPLOY.md)** —
+é o clique a clique, sem terminal e sem programar, do zero até o painel abrindo.
 
-```
-DATABASE_URL          a string de conexão do Postgres
-AUTH_SECRET           qualquer string longa e aleatória
-ADMIN_PASSWORD        a senha do painel — é só sua
-CRON_SECRET           qualquer string longa e aleatória
-NEXT_PUBLIC_SITE_URL  https://seudominio.com.br
-```
-
-4. `npx prisma migrate deploy` uma vez, contra o banco de produção.
-
-O `vercel.json` já configura o agendador de minuto em minuto. Sem ele os disparos
-não saem — é ele que acorda o sistema para conferir quem precisa receber o quê.
+Resumo do que ele faz: um banco no Neon, o site na Vercel com cinco variáveis, e um
+agendador de minuto em minuto no cron-job.org. Vinte minutos, custo zero. E-mail e
+WhatsApp entram depois, quando você quiser.
 
 ---
 

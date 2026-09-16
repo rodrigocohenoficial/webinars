@@ -39,11 +39,19 @@ desenvolvimento local possível.
 
 ## Publicar
 
-Hospedagem serverless com tarefa agendada. O `vercel.json` já traz a tarefa de minuto em
-minuto chamando `/api/cron`, protegida por `CRON_SECRET`.
+Clique a clique, sem terminal: [**GUIA-DEPLOY.md**](GUIA-DEPLOY.md).
+
+Em resumo: hospedagem serverless (Vercel) + Postgres (Neon) + um agendador chamando
+`/api/cron` de minuto em minuto, protegido por `CRON_SECRET`. As migrações rodam
+sozinhas no build (`prisma migrate deploy`), então não há passo manual de banco.
 
 Variáveis: veja `.env.example`. As obrigatórias são `DATABASE_URL`, `AUTH_SECRET`,
 `ADMIN_PASSWORD`, `CRON_SECRET` e `NEXT_PUBLIC_SITE_URL`.
+
+O plano grátis da Vercel só permite tarefa agendada uma vez por dia, e o sistema
+precisa de uma por minuto. Por isso o agendador padrão é externo (cron-job.org, grátis).
+Com Vercel Pro, dá para usar o agendador dela criando um `vercel.json` com
+`{"crons":[{"path":"/api/cron","schedule":"* * * * *"}]}`.
 
 ## Um provider de banco só
 
@@ -55,7 +63,7 @@ existir quando não há troca de provider.
 
 ## Como usar
 
-Manual de operação, do deploy à primeira sessão com gente dentro:
+Já está no ar? Manual de operação, do deploy à primeira sessão com gente dentro:
 [**COMO-RODAR.md**](COMO-RODAR.md).
 
 ## Telas

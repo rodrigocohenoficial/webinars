@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "prisma migrate deploy && next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "smoke": "node smoke/todos.mjs"
+    "smoke": "node smoke/todos.mjs",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "6.16.1",
