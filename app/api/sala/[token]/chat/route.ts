@@ -60,6 +60,48 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
     },
   });
 
+  // A enquete ativa e decidida pelo relogio do servidor contra o inicio da
+  // sessao — o cliente nao opina sobre qual esta no ar.
+  const posicao = Math.floor((Date.now() - session.startsAt.getTime()) / 1000);
+  const enqueteAtiva = await db.poll.findFirst({
+    where: {
+      webinarId: w.id,
+      atSec: { lte: posicao },
+      OR: [{ untilSec: null }, { untilSec: { gt: posicao } }],
+    },
+    orderBy: { atSec: "desc" },
+    include: {
+      options: {
+        orderBy: { order: "asc" },
+        include: { _count: { select: { votes: true } } },
+      },
+      _count: { select: { votes: true } },
+    },
+  });
+
+  const meuVoto = enqueteAtiva
+    ? await db.pollVote.findUnique({
+        where: {
+          pollId_registrationId: { pollId: enqueteAtiva.id, registrationId: inscricao.id },
+        },
+        select: { optionId: true },
+      })
+    : null;
+
+  const enquete = enqueteAtiva
+    ? {
+        id: enqueteAtiva.id,
+        pergunta: enqueteAtiva.question,
+        total: enqueteAtiva._count.votes,
+        meuVoto: meuVoto?.optionId ?? null,
+        opcoes: enqueteAtiva.options.map((o) => ({
+          id: o.id,
+          label: o.label,
+          votos: o._count.votes,
+        })),
+      }
+    : null;
+
   // Secao 10: enquete e oferta viajam junto do chat, na mesma consulta.
   // Cada dado com endpoint proprio triplica a carga sem ganhar nada.
   const oferta =
@@ -76,6 +118,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
   return Response.json(
     {
       oferta,
+      enquete,
       mensagens: mensagens.map((m) => ({
         id: m.id,
         autor: m.authorName,

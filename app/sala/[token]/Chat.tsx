@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Enquete, { type EnqueteAtiva } from "./Enquete";
 
 export type Mensagem = {
   id: string;
@@ -101,6 +102,7 @@ export default function Chat({
   cabecalho,
   extras = [],
   ehApresentador = false,
+  somenteLeitura = false,
 }: {
   token: string;
   trilha: Mensagem[];
@@ -109,8 +111,11 @@ export default function Chat({
   cabecalho?: React.ReactNode;
   extras?: Mensagem[];
   ehApresentador?: boolean;
+  /** pre-visualizacao: so a trilha, sem consulta e sem escrever */
+  somenteLeitura?: boolean;
 }) {
   const [daSessao, setDaSessao] = useState<Mensagem[]>([]);
+  const [enquete, setEnquete] = useState<EnqueteAtiva | null>(null);
   const [locais, setLocais] = useState<Mensagem[]>([]);
   const [rascunho, setRascunho] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -125,14 +130,18 @@ export default function Chat({
   // Fonte 2: consulta periodica. Sem conexao persistente: em serverless a
   // funcao tem tempo de execucao limitado e SSE nao se sustenta.
   useEffect(() => {
+    if (somenteLeitura) return;
     let vivo = true;
     const consultar = async () => {
       if (document.visibilityState !== "visible") return;
       try {
         const r = await fetch(`/api/sala/${token}/chat`, { cache: "no-store" });
         if (!r.ok) return;
-        const d = (await r.json()) as { mensagens?: Mensagem[] };
-        if (vivo && d.mensagens) setDaSessao(d.mensagens);
+        const d = (await r.json()) as { mensagens?: Mensagem[]; enquete?: EnqueteAtiva | null };
+        if (!vivo) return;
+        if (d.mensagens) setDaSessao(d.mensagens);
+        // Enquete e oferta viajam junto do chat: sem endpoint proprio.
+        setEnquete(d.enquete ?? null);
       } catch {
         // uma consulta perdida nao quebra nada: a proxima vem em 6 segundos
       }
@@ -143,7 +152,7 @@ export default function Chat({
       vivo = false;
       clearInterval(t);
     };
-  }, [token]);
+  }, [token, somenteLeitura]);
 
   const todas = useMemo(() => unir(trilha, daSessao, locais, extras), [trilha, daSessao, locais, extras]);
   const posicao = posicaoAlvo();
@@ -233,6 +242,26 @@ export default function Chat({
       </div>
 
       {cabecalho}
+
+      {enquete ? (
+        <Enquete
+          token={token}
+          enquete={enquete}
+          aoVotar={(optionId) =>
+            setEnquete((atual) =>
+              atual
+                ? {
+                    ...atual,
+                    meuVoto: optionId,
+                    // a contagem exata vem na proxima consulta; aqui so
+                    // marcamos o proprio voto, que o servidor ja confirmou
+                    total: atual.meuVoto === null ? atual.total + 1 : atual.total,
+                  }
+                : atual,
+            )
+          }
+        />
+      ) : null}
 
       <ul
         ref={esteiraRef}

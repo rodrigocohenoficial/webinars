@@ -21,7 +21,7 @@ log("login ok →", page.url());
 
 // 2. criar webinário
 await page.click("text=Novo webinario");
-await page.fill("#novo-title", "Aula ao vivo: o robô que opera sozinho");
+await page.fill("#novo-title", "O robô que opera sozinho");
 await page.click('button:has-text("Criar")');
 await page.waitForURL(/\/painel\/w\//);
 log("webinário criado →", page.url());
@@ -67,6 +67,9 @@ log("recusou oferta que aparece depois do fim do vídeo");
 const tituloDepoisDoErro = await page.inputValue("#title");
 const ctaDepoisDoErro = await page.inputValue("#ctaUrl");
 log("9.7 OK: após erro, título ainda é", JSON.stringify(tituloDepoisDoErro), "e link da oferta", JSON.stringify(ctaDepoisDoErro));
+
+const slug = await page.inputValue("#slug");
+log("slug do webinário criado:", slug);
 
 await page.screenshot({ path: "/tmp/etapa1-painel.png", fullPage: true });
 await browser.close();

@@ -50,6 +50,7 @@ export default async function PaginaSala({ params }: { params: Promise<{ token: 
     // primeira pintura; o cliente corrige contra /api/agora logo em seguida
     agoraMs: Date.now(),
     ehApresentador: inscricao.isHost,
+    previa: false,
     oferta:
       w.ctaUrl && w.ctaAtSec !== null
         ? {

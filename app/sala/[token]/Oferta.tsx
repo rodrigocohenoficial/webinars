@@ -18,10 +18,12 @@ export default function Oferta({
   token,
   config,
   posicaoAlvo,
+  previa = false,
 }: {
   token: string;
   config: OfertaConfig;
   posicaoAlvo: () => number;
+  previa?: boolean;
 }) {
   const [, tique] = useState(0);
   const jaAvisou = useRef(false);
@@ -36,6 +38,7 @@ export default function Oferta({
   if (!noAr) return null;
 
   function registrar() {
+    if (previa) return; // pre-visualizacao nao grava clique
     if (jaAvisou.current) return;
     jaAvisou.current = true;
     const sec = Math.max(0, Math.floor(posicaoAlvo()));

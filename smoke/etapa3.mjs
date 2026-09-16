@@ -135,7 +135,8 @@ await page.close();
 // ─────────────────────────────────────────────────────────────────────────
 semear(-5, "sala-espera");
 page = await abrirSala("sala-espera");
-await page.waitForSelector("text=Ainda nao comecou", { timeout: 15000 });
+// a tela de espera ganhou contagem regressiva na etapa 4
+await page.waitForSelector("text=comeca em", { timeout: 15000 });
 conferir(true, "fase WAITING antes do início");
 await page.close();
 

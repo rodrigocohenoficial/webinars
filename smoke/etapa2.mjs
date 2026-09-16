@@ -1,7 +1,7 @@
 import { chromium } from "playwright";
 
 const BASE = "http://127.0.0.1:3000";
-const SLUG = process.env.SLUG ?? "robo-que-opera-sozinho";
+const SLUG = process.env.SLUG ?? "o-robo-que-opera-sozinho";
 const log = (...a) => console.log("•", ...a);
 
 const browser = await chromium.launch(process.env.PW_CHROME ? { executablePath: process.env.PW_CHROME } : {});

@@ -31,6 +31,12 @@ export type DadosSala = {
   oferta: OfertaConfig | null;
   /** voce entrando na propria sala: mesma tela, com duas coisas a mais */
   ehApresentador: boolean;
+  /**
+   * Pre-visualizacao do painel: a mesma sala, em qualquer momento da sessao,
+   * sem se inscrever e sem gravar nada. Nenhuma batida, nenhuma consulta,
+   * nenhum clique registrado.
+   */
+  previa?: boolean;
 };
 
 function Moldura({ children }: { children: React.ReactNode }) {
@@ -84,7 +90,7 @@ export default function Sala({ dados }: { dados: DadosSala }) {
   const posicaoAlvo = useCallback(() => (agora() - dados.inicioMs) / 1000, [agora, dados.inicioMs]);
   const aoTerminar = useCallback(() => redesenhar((n) => n + 1), []);
 
-  usePresenca(dados.token, posicaoAlvo, estado.fase === "LIVE");
+  usePresenca(dados.token, posicaoAlvo, estado.fase === "LIVE" && !dados.previa);
 
   return (
     <Tela
@@ -218,7 +224,12 @@ function Tela({
             />
           ) : null}
           {dados.oferta ? (
-            <Oferta token={dados.token} config={dados.oferta} posicaoAlvo={posicaoAlvo} />
+            <Oferta
+              token={dados.token}
+              config={dados.oferta}
+              posicaoAlvo={posicaoAlvo}
+              previa={dados.previa}
+            />
           ) : null}
         </div>
         <div className="h-[420px] lg:h-[min(70vh,640px)]">
@@ -226,7 +237,8 @@ function Tela({
             token={dados.token}
             trilha={dados.trilha}
             posicaoAlvo={posicaoAlvo}
-            podeEscrever
+            podeEscrever={!dados.previa}
+            somenteLeitura={dados.previa}
             ehApresentador={dados.ehApresentador}
             cabecalho={dados.ehApresentador ? <Audiencia token={dados.token} /> : undefined}
           />
