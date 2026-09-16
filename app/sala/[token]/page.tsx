@@ -22,6 +22,7 @@ export default async function PaginaSala({ params }: { params: Promise<{ token: 
 
   const w = inscricao.session.webinar;
   const video = w.videoUrl ? parseVideoUrl(w.videoUrl) : null;
+  const videoEspera = w.waitingVideoUrl ? parseVideoUrl(w.waitingVideoUrl) : null;
 
   const dados: DadosSala = {
     token: inscricao.token,
@@ -35,6 +36,9 @@ export default async function PaginaSala({ params }: { params: Promise<{ token: 
     legendas: w.legendas,
     joinWindowMin: w.joinWindowMin,
     video: video ? { provider: video.provider, id: video.id, hash: video.hash } : null,
+    videoEspera: videoEspera
+      ? { provider: videoEspera.provider, id: videoEspera.id, hash: videoEspera.hash }
+      : null,
     // primeira pintura; o cliente corrige contra /api/agora logo em seguida
     agoraMs: Date.now(),
   };

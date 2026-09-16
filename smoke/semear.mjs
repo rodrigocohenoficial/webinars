@@ -18,6 +18,9 @@ const minutos = Number(arg("minutos", "12"));
 const slug = arg("slug", "sala-teste");
 const token = arg("token", "sala-teste-token");
 const duracao = Number(arg("duracao", String(48 * 60 + 30)));
+const janela = Number(arg("janela", "0"));
+const espera = arg("espera", null);
+const comRegra = process.argv.includes("--com-regra");
 
 const webinar = await db.webinar.upsert({
   where: { slug },
@@ -25,7 +28,8 @@ const webinar = await db.webinar.upsert({
     videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     durationSec: duracao,
     published: true,
-    joinWindowMin: 0,
+    joinWindowMin: janela,
+    waitingVideoUrl: espera,
     aspectRatio: "16/9",
   },
   create: {
@@ -34,9 +38,20 @@ const webinar = await db.webinar.upsert({
     hostName: "Rodrigo Cohen",
     videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     durationSec: duracao,
+    joinWindowMin: janela,
+    waitingVideoUrl: espera,
     published: true,
   },
 });
+
+if (comRegra) {
+  const jaTem = await db.scheduleRule.findFirst({ where: { webinarId: webinar.id } });
+  if (!jaTem) {
+    await db.scheduleRule.create({
+      data: { webinarId: webinar.id, daysOfWeek: "0,1,2,3,4,5,6", timeOfDay: "23:50" },
+    });
+  }
+}
 
 const startsAt = new Date(Date.now() - minutos * 60000);
 const sessao = await db.session.create({

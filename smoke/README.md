@@ -20,7 +20,9 @@ O que cada um prova:
 | `etapa2.mjs` | 5.3 horário forjado no DOM é recusado pelo servidor · 4.1.6 mesmo e-mail não duplica · `.ics` com DTSTART em UTC · 5.6 nenhuma palavra proibida na tela do participante |
 | `etapa3.mjs` | 4.3 vídeo posicionado em agora−início · 9.2 escada som → mudo → manual · 9.3 desmutar não dá seek · 9.4 cortina sobre a marca do provedor · deriva só corrigida acima de 3s · fases pelo relógio |
 
-`etapa3.mjs` serve um **dublê da API do YouTube** no lugar da oficial (`smoke/dubles/youtube.js`).
+| `etapa4.mjs` | contagem regressiva · 9.5 vídeo de fundo recortado e não esticado · LATE com reinscrição em um clique · ENDED com próximos horários · 5.6 em todas as fases |
+
+`etapa3.mjs` e `etapa4.mjs` servem um **dublê da API do YouTube** no lugar da oficial (`smoke/dubles/youtube.js`).
 Ele recusa reprodução automática com som e passa a permitir depois de um gesto real, que é o
 comportamento do navegador que importa aqui. Assim o teste roda sem rede e ainda assim exercita
 o código de verdade — mas a reprodução contra o provedor real precisa de uma conferida num
