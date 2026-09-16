@@ -31,8 +31,8 @@ quando não há troca de provider.
 ## Estado da construção
 
 - [x] 1. Modelo de dados e painel mínimo
-- [ ] 2. Página de inscrição e grade de horários
-- [ ] 3. A sala, fase LIVE
+- [x] 2. Página de inscrição e grade de horários
+- [x] 3. A sala, fase LIVE
 - [ ] 4. As outras três fases
 - [ ] 5. Chat: roteiro e trilha do replay
 - [ ] 6. Chat: comentários reais e curadoria
