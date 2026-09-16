@@ -29,6 +29,8 @@ export type DadosSala = {
   /** a trilha do replay, baixada inteira com a pagina */
   trilha: Mensagem[];
   oferta: OfertaConfig | null;
+  /** repetir a oferta na tela de encerramento */
+  ofertaNoFim: boolean;
   /** voce entrando na propria sala: mesma tela, com duas coisas a mais */
   ehApresentador: boolean;
   /**
@@ -196,8 +198,21 @@ function Tela({
         <div className="cartao text-center">
           <h1 className="text-lg font-semibold">Esta sessao foi encerrada</h1>
           <p className="mt-2 text-[15px] leading-relaxed text-[var(--texto-2)]">
-            Obrigado por ter vindo. Se quiser assistir de novo, escolha um horario.
+            Obrigado por ter vindo.
           </p>
+
+          {/* Quem ficou ate o fim e o lead mais quente que a sessao produz.
+              Deixar a oferta sumir junto com o video joga isso fora. */}
+          {dados.oferta && dados.ofertaNoFim ? (
+            <Oferta
+              token={dados.token}
+              config={dados.oferta}
+              posicaoAlvo={posicaoAlvo}
+              previa={dados.previa}
+              sempre
+            />
+          ) : null}
+
           <ProximosHorarios token={dados.token} />
         </div>
       </Moldura>

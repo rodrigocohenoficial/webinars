@@ -79,6 +79,7 @@ export default async function Previa({
             untilSec: w.ctaUntilSec,
           }
         : null,
+    ofertaNoFim: w.ctaNoFim,
     ehApresentador: false,
     previa: true,
   };

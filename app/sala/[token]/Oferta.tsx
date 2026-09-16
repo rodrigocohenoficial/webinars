@@ -19,11 +19,14 @@ export default function Oferta({
   config,
   posicaoAlvo,
   previa = false,
+  sempre = false,
 }: {
   token: string;
   config: OfertaConfig;
   posicaoAlvo: () => number;
   previa?: boolean;
+  /** na tela de encerramento a oferta nao depende do minuto: ja passou */
+  sempre?: boolean;
 }) {
   const [, tique] = useState(0);
   const jaAvisou = useRef(false);
@@ -34,7 +37,8 @@ export default function Oferta({
   }, []);
 
   const posicao = posicaoAlvo();
-  const noAr = posicao >= config.atSec && (config.untilSec === null || posicao < config.untilSec);
+  const noAr =
+    sempre || (posicao >= config.atSec && (config.untilSec === null || posicao < config.untilSec));
   if (!noAr) return null;
 
   function registrar() {
@@ -51,7 +55,7 @@ export default function Oferta({
   }
 
   return (
-    <div className="mt-3 rounded-xl border border-[var(--acento)]/40 bg-[var(--acento-fraco)] p-4">
+    <div className="mt-3 rounded-xl border border-[var(--acento)]/40 bg-[var(--acento-fraco)] p-4 text-left">
       {config.descricao ? (
         <p className="mb-3 text-[15px] leading-relaxed text-[var(--texto)]">{config.descricao}</p>
       ) : null}

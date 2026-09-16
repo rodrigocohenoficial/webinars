@@ -70,6 +70,9 @@ model Webinar {
   ctaDescription String?
   ctaAtSec       Int?
   ctaUntilSec    Int?
+  /// repetir a oferta na tela de encerramento: quem ficou ate o fim e o
+  /// lead mais quente que a sessao produz, e a oferta some junto com o video
+  ctaNoFim       Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

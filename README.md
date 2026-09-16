@@ -53,6 +53,11 @@ existir quando não há troca de provider.
 
 ---
 
+## Como usar
+
+Manual de operação, do deploy à primeira sessão com gente dentro:
+[**COMO-RODAR.md**](COMO-RODAR.md).
+
 ## Telas
 
 **Públicas**
@@ -95,6 +100,7 @@ Detalhes e o que cada suíte prova: [`smoke/README.md`](smoke/README.md).
 - [x] 11. Apresentador na sala
 - [x] 12. Enquetes
 - [x] Pré-visualização da sala em qualquer momento
+- [x] Oferta repetida na tela de encerramento
 
 ## O que ainda precisa de uma conferida humana
 

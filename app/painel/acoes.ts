@@ -172,6 +172,7 @@ export async function salvarWebinar(_prev: EstadoForm, formData: FormData): Prom
     ctaDescription: textoOuNulo(formData.get("ctaDescription")),
     ctaAtSec,
     ctaUntilSec,
+    ctaNoFim: ligado(formData.get("ctaNoFim")),
   };
 
   try {

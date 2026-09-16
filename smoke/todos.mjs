@@ -13,7 +13,7 @@ const RAIZ = new URL("..", import.meta.url).pathname;
 const ETAPAS = [
   "etapa1.mjs", "etapa2.mjs", "etapa3.mjs", "etapa4.mjs", "etapa5.mjs", "etapa6.mjs",
   "etapa7.mjs", "etapa8.mjs", "etapa9.mjs", "etapa10.mjs", "etapa11.mjs", "etapa12.mjs",
-  "previa.mjs",
+  "previa.mjs", "oferta-no-fim.mjs",
 ];
 
 if (process.argv.includes("--limpar-banco")) {

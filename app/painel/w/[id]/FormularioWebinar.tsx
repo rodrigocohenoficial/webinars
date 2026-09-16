@@ -28,6 +28,7 @@ export type WebinarForm = {
   ctaDescription: string;
   ctaAtSec: string;
   ctaUntilSec: string;
+  ctaNoFim: boolean;
 };
 
 function Secao({ titulo, ajuda, children }: { titulo: string; ajuda?: string; children: React.ReactNode }) {
@@ -373,6 +374,15 @@ export default function FormularioWebinar({ inicial }: { inicial: WebinarForm })
               onChange={(e) => set("ctaUntilSec", e.target.value)}
             />
           </div>
+        </div>
+        <div className="border-t border-[var(--borda)] pt-4">
+          <Interruptor
+            nome="ctaNoFim"
+            ligado={f.ctaNoFim}
+            aoMudar={(v) => set("ctaNoFim", v)}
+            titulo="Repetir a oferta na tela de encerramento"
+            ajuda="Quem ficou ate o fim e o lead mais quente da sessao. Desligue so se a oferta tiver escassez de minuto."
+          />
         </div>
       </Secao>
 

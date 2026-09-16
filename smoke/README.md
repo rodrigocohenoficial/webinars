@@ -36,6 +36,8 @@ O que cada um prova:
 
 | `etapa11.mjs` | apresentador entra na mesma tela · vê a audiência com nome e minuto · vê o chat inteiro com chat ao vivo desligado · liberar é aprovar · 9.11 isHost fora de tudo · 403 para participante |
 
+| `oferta-no-fim.mjs` | a oferta reaparece na tela de encerramento · o clique conta, grampeado pela duração · desligada no painel não aparece · e ligá-la não antecipa a oferta durante a sessão |
+
 `etapa9.mjs` não manda e-mail de verdade: sobe um servidor local fazendo o papel do Resend e da
 Z-API (`RESEND_API_URL` e `ZAPI_BASE_URL` apontam para ele) e confere as regras, que é o que
 pode quebrar.
