@@ -6,6 +6,7 @@ import { proximosSlots } from "@/lib/schedule";
 import { assistindoPorSessao } from "@/lib/presenca";
 import { formatarTelefoneBR } from "@/lib/phone";
 import AtualizaSozinho from "@/components/AtualizaSozinho";
+import { entrarNaSala } from "./acoes";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +102,13 @@ export default async function Sessoes({
             </span>
             {vendo > 0 ? (
               <span className="tabular-nums text-[var(--acento)]">{vendo} assistindo</span>
+            ) : null}
+            {noAr(s) ? (
+              <form action={entrarNaSala.bind(null, s.id)}>
+                <button type="submit" className="font-medium text-[var(--acento)] hover:brightness-125">
+                  entrar na sala
+                </button>
+              </form>
             ) : null}
             <Link
               href={aberta ? `/painel/w/${id}/sessoes` : `/painel/w/${id}/sessoes?sessao=${s.id}`}

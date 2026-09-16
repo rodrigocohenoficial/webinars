@@ -32,6 +32,10 @@ O que cada um prova:
 
 | `etapa9.mjs` | rota do agendador protegida por segredo · lembrete só para quem se inscreveu com antecedência (e carimbo mesmo assim) · folga de 4min no aviso de início · webinário sem vídeo não dispara nada · convite de replay com piso e teto · rodar de novo não reenvia |
 
+| `etapa10.mjs` | sessão de replay começa no instante da abertura · herda chat e oferta no minuto certo · reabrir durante a exibição devolve a sessão em curso · a cadeia não cresce · 5.6 na sala do replay |
+
+| `etapa11.mjs` | apresentador entra na mesma tela · vê a audiência com nome e minuto · vê o chat inteiro com chat ao vivo desligado · liberar é aprovar · 9.11 isHost fora de tudo · 403 para participante |
+
 `etapa9.mjs` não manda e-mail de verdade: sobe um servidor local fazendo o papel do Resend e da
 Z-API (`RESEND_API_URL` e `ZAPI_BASE_URL` apontam para ele) e confere as regras, que é o que
 pode quebrar.

@@ -39,6 +39,6 @@ quando não há troca de provider.
 - [x] 7. Presença e métricas
 - [x] 8. A oferta
 - [x] 9. Avisos automáticos
-- [ ] 10. Replay individual
-- [ ] 11. Apresentador na sala
+- [x] 10. Replay individual
+- [x] 11. Apresentador na sala
 - [ ] 12. Enquetes

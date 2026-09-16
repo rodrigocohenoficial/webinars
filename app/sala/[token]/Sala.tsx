@@ -10,6 +10,7 @@ import { calcularEstado, type Fase } from "@/lib/sala";
 import ProximosHorarios from "./ProximosHorarios";
 import Chat, { type Mensagem } from "./Chat";
 import Oferta, { type OfertaConfig } from "./Oferta";
+import Audiencia from "./Audiencia";
 
 export type DadosSala = {
   token: string;
@@ -28,6 +29,8 @@ export type DadosSala = {
   /** a trilha do replay, baixada inteira com a pagina */
   trilha: Mensagem[];
   oferta: OfertaConfig | null;
+  /** voce entrando na propria sala: mesma tela, com duas coisas a mais */
+  ehApresentador: boolean;
 };
 
 function Moldura({ children }: { children: React.ReactNode }) {
@@ -224,6 +227,8 @@ function Tela({
             trilha={dados.trilha}
             posicaoAlvo={posicaoAlvo}
             podeEscrever
+            ehApresentador={dados.ehApresentador}
+            cabecalho={dados.ehApresentador ? <Audiencia token={dados.token} /> : undefined}
           />
         </div>
       </div>

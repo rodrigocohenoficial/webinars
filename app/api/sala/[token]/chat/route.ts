@@ -34,16 +34,20 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
   //  - o que ja foi liberado (liberar e aprovar);
   //  - e, so com chat ao vivo ligado, o que os outros escreveram agora.
   const mensagens = await db.chatMessage.findMany({
-    where: {
-      sessionId: session.id,
-      OR: [
-        { registrationId: inscricao.id },
-        { kind: "HOST" },
-        { status: "APPROVED" },
-        ...(w.chatAoVivo ? [{ kind: "REAL" as const, status: "PENDING" as const }] : []),
-      ],
-      NOT: { status: "HIDDEN" },
-    },
+    where: inscricao.isHost
+      ? // O apresentador ve o chat inteiro, mesmo com o chat ao vivo
+        // desligado — e dali que ele libera comentario para a sala.
+        { sessionId: session.id, NOT: { status: "HIDDEN" } }
+      : {
+          sessionId: session.id,
+          OR: [
+            { registrationId: inscricao.id },
+            { kind: "HOST" },
+            { status: "APPROVED" },
+            ...(w.chatAoVivo ? [{ kind: "REAL" as const, status: "PENDING" as const }] : []),
+          ],
+          NOT: { status: "HIDDEN" },
+        },
     orderBy: [{ videoTimeSec: "asc" }, { createdAt: "asc" }],
     select: {
       id: true,

@@ -33,7 +33,17 @@ export function unir(...fontes: Mensagem[][]): Mensagem[] {
   return [...porId.values()].sort((a, b) => a.sec - b.sec || a.id.localeCompare(b.id));
 }
 
-function Bolha({ m }: { m: Mensagem }) {
+function Bolha({
+  m,
+  ehApresentador,
+  emAcao,
+  aoDecidir,
+}: {
+  m: Mensagem;
+  ehApresentador?: boolean;
+  emAcao?: boolean;
+  aoDecidir?: (id: string, acao: "liberar" | "ocultar") => void;
+}) {
   return (
     <li className={`px-4 py-2 ${m.enviando || m.falhou ? "opacity-60" : ""}`}>
       <div className="flex items-baseline gap-2">
@@ -58,6 +68,27 @@ function Bolha({ m }: { m: Mensagem }) {
       <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-[var(--texto-2)]">
         {m.texto}
       </p>
+
+      {ehApresentador && m.aguardando && m.kind === "REAL" ? (
+        <div className="mt-1.5 flex items-center gap-3">
+          <button
+            type="button"
+            disabled={emAcao}
+            onClick={() => aoDecidir?.(m.id, "liberar")}
+            className="text-[12px] font-semibold text-[var(--acento)] disabled:opacity-50"
+          >
+            {emAcao ? "liberando..." : "Liberar para a sala"}
+          </button>
+          <button
+            type="button"
+            disabled={emAcao}
+            onClick={() => aoDecidir?.(m.id, "ocultar")}
+            className="text-[12px] text-[var(--texto-3)] hover:text-[var(--erro)] disabled:opacity-50"
+          >
+            Ocultar
+          </button>
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -69,6 +100,7 @@ export default function Chat({
   podeEscrever,
   cabecalho,
   extras = [],
+  ehApresentador = false,
 }: {
   token: string;
   trilha: Mensagem[];
@@ -76,11 +108,13 @@ export default function Chat({
   podeEscrever: boolean;
   cabecalho?: React.ReactNode;
   extras?: Mensagem[];
+  ehApresentador?: boolean;
 }) {
   const [daSessao, setDaSessao] = useState<Mensagem[]>([]);
   const [locais, setLocais] = useState<Mensagem[]>([]);
   const [rascunho, setRascunho] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [emAcao, setEmAcao] = useState<Set<string>>(new Set());
 
   const [, tique] = useState(0);
   useEffect(() => {
@@ -129,6 +163,36 @@ export default function Chat({
     if (!el) return;
     coladoRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
   }, []);
+
+  /**
+   * Liberar e aprovar. Armadilha 9.6: o botao vira "liberando..." e so muda
+   * de verdade quando o servidor responde — foi exatamente aqui que o
+   * apresentador via "✓ liberado" com o comentario ainda pendente.
+   */
+  async function decidir(id: string, acao: "liberar" | "ocultar") {
+    setEmAcao((s) => new Set(s).add(id));
+    try {
+      const r = await fetch(`/api/sala/${token}/liberar`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id, acao }),
+      });
+      if (!r.ok) return;
+      setDaSessao((atual) =>
+        acao === "ocultar"
+          ? atual.filter((m) => m.id !== id)
+          : atual.map((m) => (m.id === id ? { ...m, aguardando: false } : m)),
+      );
+    } catch {
+      // a proxima consulta traz o estado real
+    } finally {
+      setEmAcao((s) => {
+        const novo = new Set(s);
+        novo.delete(id);
+        return novo;
+      });
+    }
+  }
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
@@ -180,7 +244,15 @@ export default function Chat({
             A conversa comeca em instantes.
           </li>
         ) : (
-          visiveis.map((m) => <Bolha key={m.id} m={m} />)
+          visiveis.map((m) => (
+            <Bolha
+              key={m.id}
+              m={m}
+              ehApresentador={ehApresentador}
+              emAcao={emAcao.has(m.id)}
+              aoDecidir={decidir}
+            />
+          ))
         )}
       </ul>
 
