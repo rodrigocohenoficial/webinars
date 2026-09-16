@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type Mensagem = {
   id: string;
@@ -8,16 +8,24 @@ export type Mensagem = {
   texto: string;
   sec: number;
   kind: "FAKE" | "REAL" | "HOST";
+  minha?: boolean;
+  aguardando?: boolean;
+  enviando?: boolean;
+  falhou?: boolean;
 };
+
+/** De quanto em quanto tempo a sala pergunta o que ha de novo nesta sessao. */
+const INTERVALO_CONSULTA_MS = 6000;
 
 /**
  * O feed e a uniao de tres fontes, deduplicada por id:
  *
  *  1. a trilha do replay — todos os comentarios aprovados do webinario,
  *     baixada inteira com a pagina e revelada conforme o video avanca.
- *     E deterministica, entao nao precisa de consulta nenhuma.
- *  2. os comentarios desta sessao (etapa 6);
- *  3. o que a propria pessoa acabou de escrever (etapa 6).
+ *     E deterministica, entao nao precisa de consulta nenhuma;
+ *  2. os comentarios desta sessao, buscados na consulta periodica;
+ *  3. o que a propria pessoa acabou de escrever, mostrado antes da
+ *     confirmacao chegar.
  */
 export function unir(...fontes: Mensagem[][]): Mensagem[] {
   const porId = new Map<string, Mensagem>();
@@ -27,7 +35,7 @@ export function unir(...fontes: Mensagem[][]): Mensagem[] {
 
 function Bolha({ m }: { m: Mensagem }) {
   return (
-    <li className="px-4 py-2">
+    <li className={`px-4 py-2 ${m.enviando || m.falhou ? "opacity-60" : ""}`}>
       <div className="flex items-baseline gap-2">
         <span
           className={`text-[13px] font-semibold ${
@@ -41,6 +49,11 @@ function Bolha({ m }: { m: Mensagem }) {
             apresentador
           </span>
         ) : null}
+        {m.enviando ? <span className="text-[11px] text-[var(--texto-3)]">enviando...</span> : null}
+        {m.falhou ? <span className="text-[11px] text-[var(--erro)]">nao enviou</span> : null}
+        {!m.enviando && !m.falhou && m.minha && m.aguardando ? (
+          <span className="text-[11px] text-[var(--texto-3)]">so voce ve por enquanto</span>
+        ) : null}
       </div>
       <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-[var(--texto-2)]">
         {m.texto}
@@ -50,23 +63,55 @@ function Bolha({ m }: { m: Mensagem }) {
 }
 
 export default function Chat({
+  token,
   trilha,
-  extras = [],
   posicaoAlvo,
-  rodape,
+  podeEscrever,
+  cabecalho,
+  extras = [],
 }: {
+  token: string;
   trilha: Mensagem[];
-  extras?: Mensagem[];
   posicaoAlvo: () => number;
-  rodape?: React.ReactNode;
+  podeEscrever: boolean;
+  cabecalho?: React.ReactNode;
+  extras?: Mensagem[];
 }) {
+  const [daSessao, setDaSessao] = useState<Mensagem[]>([]);
+  const [locais, setLocais] = useState<Mensagem[]>([]);
+  const [rascunho, setRascunho] = useState("");
+  const [enviando, setEnviando] = useState(false);
+
   const [, tique] = useState(0);
   useEffect(() => {
     const t = setInterval(() => tique((n) => n + 1), 500);
     return () => clearInterval(t);
   }, []);
 
-  const todas = useMemo(() => unir(trilha, extras), [trilha, extras]);
+  // Fonte 2: consulta periodica. Sem conexao persistente: em serverless a
+  // funcao tem tempo de execucao limitado e SSE nao se sustenta.
+  useEffect(() => {
+    let vivo = true;
+    const consultar = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const r = await fetch(`/api/sala/${token}/chat`, { cache: "no-store" });
+        if (!r.ok) return;
+        const d = (await r.json()) as { mensagens?: Mensagem[] };
+        if (vivo && d.mensagens) setDaSessao(d.mensagens);
+      } catch {
+        // uma consulta perdida nao quebra nada: a proxima vem em 6 segundos
+      }
+    };
+    void consultar();
+    const t = setInterval(consultar, INTERVALO_CONSULTA_MS);
+    return () => {
+      vivo = false;
+      clearInterval(t);
+    };
+  }, [token]);
+
+  const todas = useMemo(() => unir(trilha, daSessao, locais, extras), [trilha, daSessao, locais, extras]);
   const posicao = posicaoAlvo();
   const visiveis = useMemo(() => todas.filter((m) => m.sec <= posicao), [todas, posicao]);
 
@@ -79,11 +124,42 @@ export default function Chat({
     el.scrollTop = el.scrollHeight;
   }, [visiveis.length]);
 
-  function aoRolar() {
+  const aoRolar = useCallback(() => {
     const el = esteiraRef.current;
     if (!el) return;
-    // so cola de volta quando a pessoa volta ao fim por vontade propria
     coladoRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  }, []);
+
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    const texto = rascunho.trim();
+    if (!texto || enviando) return;
+
+    const idLocal = `local:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+    const sec = Math.max(0, Math.floor(posicaoAlvo()));
+
+    setLocais((l) => [...l, { id: idLocal, autor: "Voce", texto, sec, kind: "REAL", minha: true, enviando: true }]);
+    setRascunho("");
+    setEnviando(true);
+    coladoRef.current = true;
+
+    try {
+      const r = await fetch(`/api/sala/${token}/chat`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ texto, sec }),
+      });
+      if (!r.ok) throw new Error("recusado");
+      const d = (await r.json()) as { mensagem?: Mensagem };
+      // Armadilha 9.6: so trocamos o eco local pela mensagem de verdade
+      // depois que o servidor confirmou.
+      setLocais((l) => l.filter((m) => m.id !== idLocal));
+      if (d.mensagem) setDaSessao((s) => unir(s, [d.mensagem as Mensagem]));
+    } catch {
+      setLocais((l) => l.map((m) => (m.id === idLocal ? { ...m, enviando: false, falhou: true } : m)));
+    } finally {
+      setEnviando(false);
+    }
   }
 
   return (
@@ -91,6 +167,8 @@ export default function Chat({
       <div className="border-b border-[var(--borda)] px-4 py-3">
         <h2 className="titulo-secao">Conversa</h2>
       </div>
+
+      {cabecalho}
 
       <ul
         ref={esteiraRef}
@@ -106,7 +184,20 @@ export default function Chat({
         )}
       </ul>
 
-      {rodape ? <div className="border-t border-[var(--borda)] p-3">{rodape}</div> : null}
+      {podeEscrever ? (
+        <form onSubmit={enviar} className="flex gap-2 border-t border-[var(--borda)] p-3">
+          <input
+            className="campo !py-2 text-[14px]"
+            placeholder="Escreva aqui"
+            maxLength={500}
+            value={rascunho}
+            onChange={(e) => setRascunho(e.target.value)}
+          />
+          <button type="submit" className="botao shrink-0 !px-3.5 !py-2 text-[14px]" disabled={enviando}>
+            Enviar
+          </button>
+        </form>
+      ) : null}
     </aside>
   );
 }

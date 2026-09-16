@@ -24,6 +24,8 @@ O que cada um prova:
 
 | `etapa5.mjs` | colar em lote com relatório linha a linha (6 motivos diferentes) · 9.8 sem `\r` no gravado · a trilha é revelada conforme o vídeo anda, não despejada · a trilha não gera consulta periódica |
 
+| `etapa6.mjs` | 5.2 segundo enviado pelo cliente é grampeado no servidor · comentário nasce aguardando · 9.6 nada se declara feito antes da confirmação · liberar é aprovar: aparece na sala e entra na trilha da sessão seguinte |
+
 `etapa3.mjs` e `etapa4.mjs` servem um **dublê da API do YouTube** no lugar da oficial (`smoke/dubles/youtube.js`).
 Ele recusa reprodução automática com som e passa a permitir depois de um gesto real, que é o
 comportamento do navegador que importa aqui. Assim o teste roda sem rede e ainda assim exercita

@@ -46,3 +46,26 @@ export function calcularEstado(opcoes: {
   }
   return { ...base, fase: "LIVE" };
 }
+
+/**
+ * Regra 5.2: o cliente manda o segundo do video em tres lugares — comentario,
+ * presenca e voto — e nos tres o servidor grampeia o valor contra o ponto que
+ * a sessao realmente alcancou.
+ *
+ * Sem isto, uma aba adiantada infla a retencao e qualquer um planta
+ * comentario num ponto que ainda nao aconteceu.
+ */
+export function grampearSegundo(
+  enviado: unknown,
+  opcoes: { inicioMs: number; agoraMs: number; durationSec: number | null },
+): number {
+  const alcancado = Math.floor((opcoes.agoraMs - opcoes.inicioMs) / 1000);
+  const teto = opcoes.durationSec
+    ? Math.min(alcancado, opcoes.durationSec - 1)
+    : alcancado;
+
+  const n = typeof enviado === "number" ? enviado : Number(enviado);
+  if (!Number.isFinite(n)) return Math.max(0, teto);
+
+  return Math.max(0, Math.min(Math.floor(n), Math.max(0, teto)));
+}

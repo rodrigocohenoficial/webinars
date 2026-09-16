@@ -19,6 +19,10 @@ export default async function LayoutWebinar({
   });
   if (!w) notFound();
 
+  const pendentes = await db.chatMessage.count({
+    where: { webinarId: w.id, kind: "REAL", status: "PENDING" },
+  });
+
   return (
     <div className="space-y-5">
       <div>
@@ -36,7 +40,7 @@ export default async function LayoutWebinar({
         <p className="ajuda">/w/{w.slug}</p>
       </div>
 
-      <Abas id={w.id} />
+      <Abas id={w.id} pendentes={pendentes} />
       {children}
     </div>
   );

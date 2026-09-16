@@ -211,7 +211,12 @@ function Tela({
           ) : null}
         </div>
         <div className="h-[420px] lg:h-[min(70vh,640px)]">
-          <Chat trilha={dados.trilha} posicaoAlvo={posicaoAlvo} />
+          <Chat
+            token={dados.token}
+            trilha={dados.trilha}
+            posicaoAlvo={posicaoAlvo}
+            podeEscrever
+          />
         </div>
       </div>
     </main>
