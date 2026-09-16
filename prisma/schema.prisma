@@ -1,0 +1,252 @@
+// Um provider só, em dev e em producao. A armadilha 9.13 do documento
+// (ambiente de dev e de producao se contaminam) nasce de trocar o provider
+// durante o build. Sem troca, ela deixa de existir.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SessionKind {
+  SCHEDULED
+  JIT
+  REPLAY
+}
+
+enum ChatKind {
+  FAKE // roteiro escrito no painel
+  REAL // participante
+  HOST // apresentador dentro da sala
+}
+
+enum ChatStatus {
+  PENDING
+  APPROVED
+  HIDDEN
+}
+
+model Webinar {
+  id       String  @id @default(cuid())
+  slug     String  @unique
+  title    String
+  subtitle String?
+  hostName String?
+
+  description String?
+  coverUrl    String?
+
+  /// vazio = inscricoes abertas antes de a gravacao existir
+  videoUrl String?
+  /// invariante 5.1: sem ela a sessao nunca encerra e o player fica em branco
+  durationSec Int?
+  /// "16/9" ou "9/16", detectado do provedor
+  aspectRatio     String  @default("16/9")
+  /// vídeo em laco e mudo na sala de espera
+  waitingVideoUrl String?
+
+  /// falso = pagina de inscricao fora do ar, com recado proprio
+  published Boolean @default(false)
+
+  /// a opcao "comeca em N minutos"
+  jitEnabled  Boolean @default(false)
+  jitDelayMin Int     @default(10)
+
+  /// minutos apos o inicio em que ainda se pode entrar (0 = sempre)
+  joinWindowMin Int @default(0)
+  /// quantos horarios aparecem na inscricao
+  visibleSlots  Int @default(4)
+
+  /// participantes veem os comentarios uns dos outros na hora
+  chatAoVivo Boolean @default(false)
+  /// ligar as legendas do provedor
+  legendas   Boolean @default(false)
+
+  ctaLabel       String?
+  ctaUrl         String?
+  ctaDescription String?
+  ctaAtSec       Int?
+  ctaUntilSec    Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rules    ScheduleRule[]
+  sessions Session[]
+  messages ChatMessage[]
+  polls    Poll[]
+}
+
+model ScheduleRule {
+  id        String  @id @default(cuid())
+  webinarId String
+  webinar   Webinar @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+
+  /// dias da semana em numero do Date do JS: "2,4" = terca e quinta
+  daysOfWeek String
+  /// "20:00", sempre no fuso do sistema (America/Sao_Paulo, UTC-3 fixo)
+  timeOfDay  String
+  active     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@index([webinarId])
+}
+
+model Session {
+  id        String  @id @default(cuid())
+  webinarId String
+  webinar   Webinar @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+
+  startsAt DateTime
+  kind     SessionKind @default(SCHEDULED)
+
+  /// identidade da origem: "2|20:00" para grade, "jit" para JIT,
+  /// "replay:<id>" para replay individual. Nunca nulo, senao o unique
+  /// abaixo nao segura duas pessoas do mesmo horario na mesma sessao
+  /// (no Postgres, NULL nunca colide com NULL).
+  ruleKey String @default("")
+
+  createdAt DateTime @default(now())
+
+  registrations Registration[]
+  messages      ChatMessage[]
+  votes         PollVote[]
+
+  @@unique([webinarId, startsAt, ruleKey])
+  @@index([webinarId, startsAt])
+}
+
+model Registration {
+  id        String  @id @default(cuid())
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  name  String
+  email String
+  phone String?
+
+  /// a credencial: o link e a senha, nao existe login para o participante
+  token String @unique
+
+  createdAt   DateTime  @default(now())
+  firstSeenAt DateTime?
+  lastSeenAt  DateTime?
+
+  /// ponto mais avancado alcancado. So o maximo, nunca cada batida.
+  watchedUntilSec Int @default(0)
+
+  ctaClickedAt    DateTime?
+  ctaClickedAtSec Int?
+
+  // travas de reenvio: a trava e o carimbo, nao a frequencia do agendador
+  confirmationSentAt DateTime?
+  reminderSentAt     DateTime?
+  startNoticeSentAt  DateTime?
+  replaySentAt       DateTime?
+
+  whatsappSentAt     DateTime?
+  whatsappSentId     String?
+  whatsappReminderAt DateTime?
+  whatsappReminderId String?
+
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  referrer    String?
+
+  /// voce entrando na propria sala: fora de TODA metrica e de TODA lista
+  isHost Boolean @default(false)
+
+  /// inscricao nascida de um /replay/<token>: aponta para a original
+  replayOfId String?
+  replayOf   Registration?  @relation("ReplayChain", fields: [replayOfId], references: [id], onDelete: SetNull)
+  replays    Registration[] @relation("ReplayChain")
+
+  messages ChatMessage[]
+  votes    PollVote[]
+
+  @@index([sessionId])
+  @@index([email])
+  @@index([replayOfId])
+}
+
+model ChatMessage {
+  id        String  @id @default(cuid())
+  webinarId String
+  webinar   Webinar @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+
+  /// o coracao do sistema: o segundo do video, nunca a hora do relogio
+  videoTimeSec Int
+
+  authorName String
+  body       String
+
+  kind   ChatKind
+  /// FAKE e HOST nascem APPROVED; REAL nasce PENDING
+  status ChatStatus @default(PENDING)
+
+  sessionId      String?
+  session        Session?      @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  registrationId String?
+  registration   Registration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([webinarId, status, videoTimeSec])
+  @@index([sessionId, videoTimeSec])
+  @@index([webinarId, status, createdAt])
+}
+
+model Poll {
+  id        String  @id @default(cuid())
+  webinarId String
+  webinar   Webinar @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+
+  question String
+  atSec    Int
+  untilSec Int?
+
+  createdAt DateTime @default(now())
+
+  options PollOption[]
+  votes   PollVote[]
+
+  @@index([webinarId, atSec])
+}
+
+model PollOption {
+  id     String @id @default(cuid())
+  pollId String
+  poll   Poll   @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  label String
+  order Int    @default(0)
+
+  votes PollVote[]
+
+  @@index([pollId, order])
+}
+
+model PollVote {
+  id       String     @id @default(cuid())
+  pollId   String
+  poll     Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  optionId String
+  option   PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  registrationId String
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  sessionId      String?
+  session        Session?     @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// um voto por pessoa, com direito a trocar
+  @@unique([pollId, registrationId])
+  @@index([pollId, optionId])
+}

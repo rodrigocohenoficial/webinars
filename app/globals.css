@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+:root {
+  --fundo: #07090d;
+  --fundo-2: #0d1118;
+  --cartao: #10151e;
+  --borda: #1e2632;
+  --texto: #e8edf5;
+  --texto-2: #98a3b3;
+  --texto-3: #626d7d;
+  --acento: #22c55e;
+  --acento-fraco: #16331f;
+  --alerta: #f59e0b;
+  --erro: #f04438;
+}
+
+@theme inline {
+  --color-fundo: var(--fundo);
+  --color-fundo-2: var(--fundo-2);
+  --color-cartao: var(--cartao);
+  --color-borda: var(--borda);
+  --color-texto: var(--texto);
+  --color-texto-2: var(--texto-2);
+  --color-texto-3: var(--texto-3);
+  --color-acento: var(--acento);
+  --color-alerta: var(--alerta);
+  --color-erro: var(--erro);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  background: var(--fundo);
+  color: var(--texto);
+}
+
+body {
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .campo {
+    @apply w-full rounded-lg border border-[var(--borda)] bg-[var(--fundo-2)] px-3 py-2.5 text-[15px] text-[var(--texto)] outline-none transition;
+  }
+  .campo:focus {
+    @apply border-[var(--acento)] ring-2 ring-[var(--acento)]/20;
+  }
+  .campo::placeholder {
+    color: var(--texto-3);
+  }
+  .rotulo {
+    @apply mb-1.5 block text-[13px] font-medium text-[var(--texto-2)];
+  }
+  .ajuda {
+    @apply mt-1.5 text-[12px] leading-relaxed text-[var(--texto-3)];
+  }
+  .botao {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--acento)] px-4 py-2.5 text-[15px] font-semibold text-[#04120a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .botao-fantasma {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--borda)] bg-transparent px-4 py-2.5 text-[15px] font-medium text-[var(--texto-2)] transition hover:border-[var(--texto-3)] hover:text-[var(--texto)] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .cartao {
+    @apply rounded-xl border border-[var(--borda)] bg-[var(--cartao)] p-5;
+  }
+  .selo {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide;
+  }
+  .titulo-secao {
+    @apply text-[13px] font-semibold uppercase tracking-wider text-[var(--texto-3)];
+  }
+}
+
+/* A esteira do chat e a lista de inscritos rolam muito. */
+.rolagem-fina::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.rolagem-fina::-webkit-scrollbar-thumb {
+  background: var(--borda);
+  border-radius: 999px;
+}
+.rolagem-fina::-webkit-scrollbar-track {
+  background: transparent;
+}
