@@ -30,6 +30,12 @@ O que cada um prova:
 
 | `etapa8.mjs` | a oferta aparece no minuto e some no outro · clique gravado com o ponto do vídeo · só o primeiro clique conta · conversão sobre quem chegou ao minuto dela · oferta viaja junto do chat |
 
+| `etapa9.mjs` | rota do agendador protegida por segredo · lembrete só para quem se inscreveu com antecedência (e carimbo mesmo assim) · folga de 4min no aviso de início · webinário sem vídeo não dispara nada · convite de replay com piso e teto · rodar de novo não reenvia |
+
+`etapa9.mjs` não manda e-mail de verdade: sobe um servidor local fazendo o papel do Resend e da
+Z-API (`RESEND_API_URL` e `ZAPI_BASE_URL` apontam para ele) e confere as regras, que é o que
+pode quebrar.
+
 `etapa3.mjs` e `etapa4.mjs` servem um **dublê da API do YouTube** no lugar da oficial (`smoke/dubles/youtube.js`).
 Ele recusa reprodução automática com som e passa a permitir depois de um gesto real, que é o
 comportamento do navegador que importa aqui. Assim o teste roda sem rede e ainda assim exercita

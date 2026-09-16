@@ -38,7 +38,7 @@ quando não há troca de provider.
 - [x] 6. Chat: comentários reais e curadoria
 - [x] 7. Presença e métricas
 - [x] 8. A oferta
-- [ ] 9. Avisos automáticos
+- [x] 9. Avisos automáticos
 - [ ] 10. Replay individual
 - [ ] 11. Apresentador na sala
 - [ ] 12. Enquetes

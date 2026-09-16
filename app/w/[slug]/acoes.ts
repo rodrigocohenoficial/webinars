@@ -6,6 +6,7 @@ import { novoToken } from "@/lib/auth";
 import { acharSlotPermitido, slotJit } from "@/lib/schedule";
 import { emailValido, texto, textoOuNulo } from "@/lib/texto";
 import { normalizarTelefoneBR } from "@/lib/phone";
+import { enviarConfirmacao } from "@/lib/avisos";
 
 export type EstadoInscricao = { erro?: string };
 
@@ -85,8 +86,16 @@ export async function inscrever(
       utmCampaign: textoOuNulo(formData.get("utmCampaign")),
       referrer: textoOuNulo(formData.get("referrer")),
     },
-    select: { token: true },
+    select: { id: true, token: true },
   });
+
+  // Confirmacao sai na hora, pelos dois canais. Falha de envio nunca derruba
+  // a inscricao: a vaga ja esta gravada.
+  try {
+    await enviarConfirmacao(inscricao.id);
+  } catch {
+    // nenhum canal e obrigatorio para a pessoa ter vaga
+  }
 
   redirect(`/obrigado/${inscricao.token}`);
 }
