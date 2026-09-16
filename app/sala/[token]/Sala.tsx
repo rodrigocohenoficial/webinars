@@ -5,6 +5,7 @@ import Palco from "@/components/player/Palco";
 import Ambiente from "@/components/player/Ambiente";
 import type { PlayerRef } from "@/components/player/tipos";
 import { useRelogio } from "@/components/useRelogio";
+import { usePresenca } from "@/components/usePresenca";
 import { calcularEstado, type Fase } from "@/lib/sala";
 import ProximosHorarios from "./ProximosHorarios";
 import Chat, { type Mensagem } from "./Chat";
@@ -77,6 +78,8 @@ export default function Sala({ dados }: { dados: DadosSala }) {
 
   const posicaoAlvo = useCallback(() => (agora() - dados.inicioMs) / 1000, [agora, dados.inicioMs]);
   const aoTerminar = useCallback(() => redesenhar((n) => n + 1), []);
+
+  usePresenca(dados.token, posicaoAlvo, estado.fase === "LIVE");
 
   return (
     <Tela

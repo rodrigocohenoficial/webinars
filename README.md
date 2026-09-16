@@ -36,7 +36,7 @@ quando não há troca de provider.
 - [x] 4. As outras três fases
 - [x] 5. Chat: roteiro e trilha do replay
 - [x] 6. Chat: comentários reais e curadoria
-- [ ] 7. Presença e métricas
+- [x] 7. Presença e métricas
 - [ ] 8. A oferta
 - [ ] 9. Avisos automáticos
 - [ ] 10. Replay individual

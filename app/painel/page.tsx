@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { formatDuracao } from "@/lib/time";
+import { assistindoPorWebinar } from "@/lib/presenca";
+import AtualizaSozinho from "@/components/AtualizaSozinho";
 import NovoWebinario from "./NovoWebinario";
 
 export const dynamic = "force-dynamic";
@@ -19,8 +21,14 @@ export default async function ListaWebinarios() {
     },
   });
 
+  // 9.12: quem esta assistindo agora e sinal recente, e o numero precisa se
+  // atualizar sozinho enquanto houver sessao no ar.
+  const assistindo = await assistindoPorWebinar(webinarios.map((w) => w.id));
+  const algumNoAr = [...assistindo.values()].some((n) => n > 0);
+
   return (
     <div className="space-y-7">
+      <AtualizaSozinho ativo={algumNoAr} />
       <div className="flex items-start justify-between gap-6">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Webinarios</h1>
@@ -50,6 +58,11 @@ export default async function ListaWebinarios() {
                     ) : (
                       <span className="selo bg-[var(--fundo-2)] text-[var(--texto-3)]">rascunho</span>
                     )}
+                    {(assistindo.get(w.id) ?? 0) > 0 ? (
+                      <span className="selo bg-[var(--acento)] text-[#04120a]">
+                        {assistindo.get(w.id)} assistindo
+                      </span>
+                    ) : null}
                   </div>
                   <p className="ajuda truncate">
                     /w/{w.slug}

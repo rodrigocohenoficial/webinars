@@ -7,6 +7,8 @@ const ABAS = [
   { href: "", nome: "Configuracao" },
   { href: "/roteiro", nome: "Roteiro" },
   { href: "/curadoria", nome: "Curadoria" },
+  { href: "/sessoes", nome: "Sessoes" },
+  { href: "/desempenho", nome: "Desempenho" },
 ];
 
 export default function Abas({ id, pendentes = 0 }: { id: string; pendentes?: number }) {
