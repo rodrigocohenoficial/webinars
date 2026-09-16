@@ -34,7 +34,7 @@ quando não há troca de provider.
 - [x] 2. Página de inscrição e grade de horários
 - [x] 3. A sala, fase LIVE
 - [x] 4. As outras três fases
-- [ ] 5. Chat: roteiro e trilha do replay
+- [x] 5. Chat: roteiro e trilha do replay
 - [ ] 6. Chat: comentários reais e curadoria
 - [ ] 7. Presença e métricas
 - [ ] 8. A oferta

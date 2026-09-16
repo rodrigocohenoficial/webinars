@@ -21,6 +21,7 @@ const duracao = Number(arg("duracao", String(48 * 60 + 30)));
 const janela = Number(arg("janela", "0"));
 const espera = arg("espera", null);
 const comRegra = process.argv.includes("--com-regra");
+const limpar = process.argv.includes("--limpar");
 
 const webinar = await db.webinar.upsert({
   where: { slug },
@@ -53,6 +54,11 @@ if (comRegra) {
   }
 }
 
+if (limpar) {
+  await db.chatMessage.deleteMany({ where: { webinarId: webinar.id } });
+  await db.poll.deleteMany({ where: { webinarId: webinar.id } });
+}
+
 const startsAt = new Date(Date.now() - minutos * 60000);
 const sessao = await db.session.create({
   data: { webinarId: webinar.id, startsAt, ruleKey: `teste:${Date.now()}`, kind: "SCHEDULED" },
@@ -63,5 +69,5 @@ await db.registration.create({
   data: { sessionId: sessao.id, name: "Participante Teste", email: "teste@teste.com", token },
 });
 
-console.log(JSON.stringify({ slug, token, sessaoId: sessao.id, startsAt: startsAt.toISOString(), duracao }));
+console.log(JSON.stringify({ slug, token, webinarId: webinar.id, sessaoId: sessao.id, startsAt: startsAt.toISOString(), duracao }));
 await db.$disconnect();

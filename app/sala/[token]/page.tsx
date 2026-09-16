@@ -24,6 +24,14 @@ export default async function PaginaSala({ params }: { params: Promise<{ token: 
   const video = w.videoUrl ? parseVideoUrl(w.videoUrl) : null;
   const videoEspera = w.waitingVideoUrl ? parseVideoUrl(w.waitingVideoUrl) : null;
 
+  // A trilha do replay e deterministica: o cliente baixa uma vez e revela
+  // conforme o video anda. Nada aqui precisa de consulta periodica.
+  const trilha = await db.chatMessage.findMany({
+    where: { webinarId: w.id, status: "APPROVED" },
+    orderBy: [{ videoTimeSec: "asc" }, { createdAt: "asc" }],
+    select: { id: true, authorName: true, body: true, videoTimeSec: true, kind: true },
+  });
+
   const dados: DadosSala = {
     token: inscricao.token,
     titulo: w.title,
@@ -41,6 +49,13 @@ export default async function PaginaSala({ params }: { params: Promise<{ token: 
       : null,
     // primeira pintura; o cliente corrige contra /api/agora logo em seguida
     agoraMs: Date.now(),
+    trilha: trilha.map((m) => ({
+      id: m.id,
+      autor: m.authorName,
+      texto: m.body,
+      sec: m.videoTimeSec,
+      kind: m.kind,
+    })),
   };
 
   return <Sala dados={dados} />;

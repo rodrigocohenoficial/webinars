@@ -48,18 +48,10 @@ export default async function ConfigurarWebinar({ params }: { params: Promise<{ 
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <Link href="/painel" className="ajuda hover:text-[var(--texto)]">
-            ← todos os webinarios
-          </Link>
-          <h1 className="mt-1 truncate text-xl font-semibold tracking-tight">{w.title}</h1>
-          <p className="ajuda">
-            <Link href={`/w/${w.slug}`} className="hover:text-[var(--texto)]">
-              /w/{w.slug}
-            </Link>
-          </p>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <Link href={`/w/${w.slug}`} className="ajuda hover:text-[var(--texto)]">
+          abrir a pagina de inscricao ↗
+        </Link>
         <div className="flex shrink-0 items-center gap-2">
           <form action={alternarPublicacao.bind(null, w.id)}>
             <button type="submit" className="botao-fantasma">

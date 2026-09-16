@@ -7,6 +7,7 @@ import type { PlayerRef } from "@/components/player/tipos";
 import { useRelogio } from "@/components/useRelogio";
 import { calcularEstado, type Fase } from "@/lib/sala";
 import ProximosHorarios from "./ProximosHorarios";
+import Chat, { type Mensagem } from "./Chat";
 
 export type DadosSala = {
   token: string;
@@ -22,6 +23,8 @@ export type DadosSala = {
   video: PlayerRef | null;
   videoEspera: PlayerRef | null;
   agoraMs: number;
+  /** a trilha do replay, baixada inteira com a pagina */
+  trilha: Mensagem[];
 };
 
 function Moldura({ children }: { children: React.ReactNode }) {
@@ -188,22 +191,29 @@ function Tela({
   }
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-6">
+    <main className="mx-auto w-full max-w-6xl px-4 py-5">
       <div className="mb-4">
         <h1 className="text-lg font-semibold leading-tight tracking-tight sm:text-xl">{dados.titulo}</h1>
         {dados.apresentador ? <p className="ajuda">Com {dados.apresentador}</p> : null}
       </div>
 
-      {dados.video ? (
-        <Palco
-          video={dados.video}
-          aspectRatio={dados.aspectRatio}
-          legendas={dados.legendas}
-          posicaoAlvo={posicaoAlvo}
-          capaUrl={dados.capaUrl}
-          aoTerminar={aoTerminar}
-        />
-      ) : null}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div>
+          {dados.video ? (
+            <Palco
+              video={dados.video}
+              aspectRatio={dados.aspectRatio}
+              legendas={dados.legendas}
+              posicaoAlvo={posicaoAlvo}
+              capaUrl={dados.capaUrl}
+              aoTerminar={aoTerminar}
+            />
+          ) : null}
+        </div>
+        <div className="h-[420px] lg:h-[min(70vh,640px)]">
+          <Chat trilha={dados.trilha} posicaoAlvo={posicaoAlvo} />
+        </div>
+      </div>
     </main>
   );
 }

@@ -22,6 +22,8 @@ O que cada um prova:
 
 | `etapa4.mjs` | contagem regressiva · 9.5 vídeo de fundo recortado e não esticado · LATE com reinscrição em um clique · ENDED com próximos horários · 5.6 em todas as fases |
 
+| `etapa5.mjs` | colar em lote com relatório linha a linha (6 motivos diferentes) · 9.8 sem `\r` no gravado · a trilha é revelada conforme o vídeo anda, não despejada · a trilha não gera consulta periódica |
+
 `etapa3.mjs` e `etapa4.mjs` servem um **dublê da API do YouTube** no lugar da oficial (`smoke/dubles/youtube.js`).
 Ele recusa reprodução automática com som e passa a permitir depois de um gesto real, que é o
 comportamento do navegador que importa aqui. Assim o teste roda sem rede e ainda assim exercita
