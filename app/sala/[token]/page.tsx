@@ -49,6 +49,16 @@ export default async function PaginaSala({ params }: { params: Promise<{ token: 
       : null,
     // primeira pintura; o cliente corrige contra /api/agora logo em seguida
     agoraMs: Date.now(),
+    oferta:
+      w.ctaUrl && w.ctaAtSec !== null
+        ? {
+            label: w.ctaLabel ?? "Quero saber mais",
+            url: w.ctaUrl,
+            descricao: w.ctaDescription,
+            atSec: w.ctaAtSec,
+            untilSec: w.ctaUntilSec,
+          }
+        : null,
     trilha: trilha.map((m) => ({
       id: m.id,
       autor: m.authorName,

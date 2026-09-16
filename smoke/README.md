@@ -28,6 +28,8 @@ O que cada um prova:
 
 | `etapa7.mjs` | batida de presença · 5.2 na presença · 9.11 apresentador fora de métrica, lista e CSV · 9.12 quem está assistindo é sinal recente · CSV exige login · curva em 40 pontos |
 
+| `etapa8.mjs` | a oferta aparece no minuto e some no outro · clique gravado com o ponto do vídeo · só o primeiro clique conta · conversão sobre quem chegou ao minuto dela · oferta viaja junto do chat |
+
 `etapa3.mjs` e `etapa4.mjs` servem um **dublê da API do YouTube** no lugar da oficial (`smoke/dubles/youtube.js`).
 Ele recusa reprodução automática com som e passa a permitir depois de um gesto real, que é o
 comportamento do navegador que importa aqui. Assim o teste roda sem rede e ainda assim exercita

@@ -9,6 +9,7 @@ import { usePresenca } from "@/components/usePresenca";
 import { calcularEstado, type Fase } from "@/lib/sala";
 import ProximosHorarios from "./ProximosHorarios";
 import Chat, { type Mensagem } from "./Chat";
+import Oferta, { type OfertaConfig } from "./Oferta";
 
 export type DadosSala = {
   token: string;
@@ -26,6 +27,7 @@ export type DadosSala = {
   agoraMs: number;
   /** a trilha do replay, baixada inteira com a pagina */
   trilha: Mensagem[];
+  oferta: OfertaConfig | null;
 };
 
 function Moldura({ children }: { children: React.ReactNode }) {
@@ -211,6 +213,9 @@ function Tela({
               capaUrl={dados.capaUrl}
               aoTerminar={aoTerminar}
             />
+          ) : null}
+          {dados.oferta ? (
+            <Oferta token={dados.token} config={dados.oferta} posicaoAlvo={posicaoAlvo} />
           ) : null}
         </div>
         <div className="h-[420px] lg:h-[min(70vh,640px)]">

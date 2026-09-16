@@ -56,8 +56,22 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
     },
   });
 
+  // Secao 10: enquete e oferta viajam junto do chat, na mesma consulta.
+  // Cada dado com endpoint proprio triplica a carga sem ganhar nada.
+  const oferta =
+    w.ctaUrl && w.ctaAtSec !== null
+      ? {
+          label: w.ctaLabel ?? "Quero saber mais",
+          url: w.ctaUrl,
+          descricao: w.ctaDescription,
+          atSec: w.ctaAtSec,
+          untilSec: w.ctaUntilSec,
+        }
+      : null;
+
   return Response.json(
     {
+      oferta,
       mensagens: mensagens.map((m) => ({
         id: m.id,
         autor: m.authorName,

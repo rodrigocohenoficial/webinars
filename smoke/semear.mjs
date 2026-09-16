@@ -22,6 +22,8 @@ const janela = Number(arg("janela", "0"));
 const espera = arg("espera", null);
 const comRegra = process.argv.includes("--com-regra");
 const limpar = process.argv.includes("--limpar");
+const ofertaEm = arg("oferta-em", null);
+const ofertaAte = arg("oferta-ate", null);
 
 const webinar = await db.webinar.upsert({
   where: { slug },
@@ -32,6 +34,15 @@ const webinar = await db.webinar.upsert({
     joinWindowMin: janela,
     waitingVideoUrl: espera,
     aspectRatio: "16/9",
+    ...(ofertaEm
+      ? {
+          ctaLabel: "Quero minha vaga",
+          ctaUrl: "https://tradernation.com.br/oferta",
+          ctaDescription: "As vagas desta turma abrem agora.",
+          ctaAtSec: Number(ofertaEm),
+          ctaUntilSec: ofertaAte ? Number(ofertaAte) : null,
+        }
+      : {}),
   },
   create: {
     slug,
@@ -42,6 +53,15 @@ const webinar = await db.webinar.upsert({
     joinWindowMin: janela,
     waitingVideoUrl: espera,
     published: true,
+    ...(ofertaEm
+      ? {
+          ctaLabel: "Quero minha vaga",
+          ctaUrl: "https://tradernation.com.br/oferta",
+          ctaDescription: "As vagas desta turma abrem agora.",
+          ctaAtSec: Number(ofertaEm),
+          ctaUntilSec: ofertaAte ? Number(ofertaAte) : null,
+        }
+      : {}),
   },
 });
 
