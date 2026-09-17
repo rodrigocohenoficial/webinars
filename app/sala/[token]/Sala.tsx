@@ -66,6 +66,7 @@ export default function Sala({ dados }: { dados: DadosSala }) {
   // quem chega tarde, nao para quem esta assistindo.
   const jaEntrouRef = useRef(false);
   const [tique, redesenhar] = useState(0);
+  const [assistindo, setAssistindo] = useState<number | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => redesenhar((n) => n + 1), 500);
@@ -101,6 +102,8 @@ export default function Sala({ dados }: { dados: DadosSala }) {
       dados={dados}
       posicaoAlvo={posicaoAlvo}
       aoTerminar={aoTerminar}
+      assistindo={assistindo}
+      aoSaberAudiencia={setAssistindo}
     />
   );
 }
@@ -127,18 +130,44 @@ function FundoEspera({ dados }: { dados: DadosSala }) {
   return null;
 }
 
+/**
+ * Quantos estao assistindo agora.
+ *
+ * E o unico sinal de sala cheia que este sistema mostra, e ele e verdadeiro:
+ * gente que deu sinal nos ultimos 75 segundos. Nao ha ponto vermelho
+ * pulsando nem selo de transmissao — a armadilha 9.10 e justamente essa, o
+ * semaforo que faz a afirmacao por outro meio. Isto aqui fala de publico,
+ * nao de transmissao.
+ */
+function ContadorAudiencia({ quantos }: { quantos: number }) {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[var(--borda)] bg-[var(--cartao)] px-3 py-1.5 text-[13px] text-[var(--texto-2)]">
+      <span className="relative flex h-2 w-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--acento)] opacity-60" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--acento)]" />
+      </span>
+      <strong className="font-semibold tabular-nums text-[var(--texto)]">{quantos}</strong>
+      assistindo agora
+    </span>
+  );
+}
+
 function Tela({
   fase,
   faltamSec,
   dados,
   posicaoAlvo,
   aoTerminar,
+  assistindo,
+  aoSaberAudiencia,
 }: {
   fase: Fase;
   faltamSec: number;
   dados: DadosSala;
   posicaoAlvo: () => number;
   aoTerminar: () => void;
+  assistindo: number | null;
+  aoSaberAudiencia: (quantos: number | null) => void;
 }) {
   // Regra 5.6: nenhuma destas telas diz video, gravacao ou replay.
   if (fase === "SEM_VIDEO") {
@@ -221,10 +250,19 @@ function Tela({
 
   return (
     <main className="mx-auto w-full max-w-[1400px] px-4 py-5">
-      <div className="mb-4">
-        <h1 className="text-lg font-semibold leading-tight tracking-tight sm:text-xl">{dados.titulo}</h1>
-        {dados.apresentador ? <p className="ajuda">Com {dados.apresentador}</p> : null}
-      </div>
+      <header className="mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-semibold leading-tight tracking-tight sm:text-2xl">
+            {dados.titulo}
+          </h1>
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-[var(--texto-3)]">
+            {dados.apresentador ? <span>Com {dados.apresentador}</span> : null}
+            {dados.apresentador && dados.subtitulo ? <span aria-hidden>·</span> : null}
+            {dados.subtitulo ? <span className="truncate">{dados.subtitulo}</span> : null}
+          </p>
+        </div>
+        {assistindo !== null ? <ContadorAudiencia quantos={assistindo} /> : null}
+      </header>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div>
@@ -262,6 +300,7 @@ function Tela({
               podeEscrever={!dados.previa}
               somenteLeitura={dados.previa}
               ehApresentador={dados.ehApresentador}
+              aoSaberAudiencia={aoSaberAudiencia}
               cabecalho={dados.ehApresentador ? <Audiencia token={dados.token} /> : undefined}
             />
           </div>

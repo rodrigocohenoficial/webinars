@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { grampearSegundo } from "@/lib/sala";
+import { JANELA_PRESENCA_MS } from "@/lib/metricas";
 import { normalizarTexto } from "@/lib/texto";
 
 export const dynamic = "force-dynamic";
@@ -102,6 +103,23 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
       }
     : null;
 
+  /**
+   * Quantos estao assistindo agora. E numero de verdade — quem deu sinal nos
+   * ultimos 75 segundos (9.12) — e o apresentador fica fora dele (9.11).
+   *
+   * Abaixo do minimo, devolvemos null e a sala nao mostra nada. Nao e
+   * inflar: e escolher nao anunciar uma sala de duas pessoas, que esvazia em
+   * vez de encher.
+   */
+  let assistindo: number | null = null;
+  if (w.mostrarAudiencia) {
+    const desde = new Date(Date.now() - JANELA_PRESENCA_MS);
+    const quantos = await db.registration.count({
+      where: { sessionId: session.id, isHost: false, lastSeenAt: { gte: desde } },
+    });
+    assistindo = quantos >= w.audienciaMinima ? quantos : null;
+  }
+
   // Secao 10: enquete e oferta viajam junto do chat, na mesma consulta.
   // Cada dado com endpoint proprio triplica a carga sem ganhar nada.
   const oferta =
@@ -119,6 +137,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
     {
       oferta,
       enquete,
+      assistindo,
       mensagens: mensagens.map((m) => ({
         id: m.id,
         autor: m.authorName,

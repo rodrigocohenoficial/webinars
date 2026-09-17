@@ -167,6 +167,8 @@ export async function salvarWebinar(_prev: EstadoForm, formData: FormData): Prom
     visibleSlots: Math.min(12, Math.max(1, inteiro(formData.get("visibleSlots"), 4))),
     chatAoVivo: ligado(formData.get("chatAoVivo")),
     legendas: ligado(formData.get("legendas")),
+    mostrarAudiencia: ligado(formData.get("mostrarAudiencia")),
+    audienciaMinima: Math.min(999, Math.max(0, inteiro(formData.get("audienciaMinima"), 3))),
     ctaLabel: textoOuNulo(formData.get("ctaLabel")),
     ctaUrl,
     ctaDescription: textoOuNulo(formData.get("ctaDescription")),

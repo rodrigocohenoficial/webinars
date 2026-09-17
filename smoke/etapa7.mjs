@@ -107,6 +107,51 @@ await painel.waitForSelector("svg", { timeout: 15000 });
 const pontosCurva = await painel.locator("svg + div button").count();
 conferir(pontosCurva === 40, `curva de retenção em 40 pontos (${pontosCurva})`);
 
+// ── o participante vê quantos estão assistindo ─────────────────────────
+const { PrismaClient: PCa } = await import("@prisma/client");
+const dba = new PCa();
+await dba.webinar.update({
+  where: { id: s.webinarId },
+  data: { mostrarAudiencia: true, audienciaMinima: 2 },
+});
+
+// uma pessoa só: abaixo do mínimo, não mostra
+const contaBaixa = await fetch(`${BASE}/api/sala/pres-a/chat`).then((r) => r.json());
+conferir(
+  contaBaixa.assistindo === null,
+  `abaixo do mínimo o número não aparece (${contaBaixa.assistindo})`,
+);
+
+// duas pessoas de verdade: aparece
+const euMesmo = await dba.registration.findUnique({ where: { token: "pres-a" } });
+await dba.registration.deleteMany({ where: { token: "pres-b" } });
+await dba.registration.create({
+  data: {
+    sessionId: euMesmo.sessionId, name: "Outra Pessoa", email: "outra@teste.com",
+    token: "pres-b", firstSeenAt: new Date(), lastSeenAt: new Date(), watchedUntilSec: 120,
+  },
+});
+await fetch(`${BASE}/api/sala/pres-a/presenca`, {
+  method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sec: 300 }),
+});
+const contaOk = await fetch(`${BASE}/api/sala/pres-a/chat`).then((r) => r.json());
+conferir(contaOk.assistindo === 2, `com o mínimo atingido, o número aparece (${contaOk.assistindo})`);
+
+// 9.11: o apresentador não entra na conta
+await dba.registration.updateMany({
+  where: { token: "host-teste-token" },
+  data: { lastSeenAt: new Date() },
+});
+const comHost = await fetch(`${BASE}/api/sala/pres-a/chat`).then((r) => r.json());
+conferir(comHost.assistindo === 2, `9.11 o apresentador não entra na conta de audiência (${comHost.assistindo})`);
+
+// desligado no painel, não sai nem no dado
+await dba.webinar.update({ where: { id: s.webinarId }, data: { mostrarAudiencia: false } });
+const desligado = await fetch(`${BASE}/api/sala/pres-a/chat`).then((r) => r.json());
+conferir(desligado.assistindo === null, "desligado no painel, o número nem viaja");
+await dba.webinar.update({ where: { id: s.webinarId }, data: { mostrarAudiencia: true } });
+await dba.$disconnect();
+
 await sala.close();
 await painel.close();
 await browser.close();

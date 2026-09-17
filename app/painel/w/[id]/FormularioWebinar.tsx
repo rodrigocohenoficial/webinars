@@ -23,6 +23,8 @@ export type WebinarForm = {
   visibleSlots: string;
   chatAoVivo: boolean;
   legendas: boolean;
+  mostrarAudiencia: boolean;
+  audienciaMinima: string;
   ctaLabel: string;
   ctaUrl: string;
   ctaDescription: string;
@@ -313,6 +315,37 @@ export default function FormularioWebinar({ inicial }: { inicial: WebinarForm })
             aoMudar={(v) => set("legendas", v)}
             titulo="Ligar as legendas do provedor"
           />
+          <Interruptor
+            nome="mostrarAudiencia"
+            ligado={f.mostrarAudiencia}
+            aoMudar={(v) => set("mostrarAudiencia", v)}
+            titulo="Mostrar quantos estao assistindo"
+            ajuda="Numero de verdade: quem deu sinal nos ultimos 75 segundos. E o sinal de sala cheia mais forte que existe, e o unico honesto."
+          />
+          {f.mostrarAudiencia ? (
+            <div className="pl-7">
+              <label className="rotulo" htmlFor="audienciaMinima">
+                So mostrar a partir de
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="audienciaMinima"
+                  name="audienciaMinima"
+                  type="number"
+                  min={0}
+                  max={999}
+                  className="campo w-24"
+                  value={f.audienciaMinima}
+                  onChange={(e) => set("audienciaMinima", e.target.value)}
+                />
+                <span className="text-[14px] text-[var(--texto-2)]">pessoas</span>
+              </div>
+              <p className="ajuda">
+                Abaixo disso o numero nao aparece. Nao inflamos nada — so nao anunciamos uma sala de
+                duas pessoas, que esvazia em vez de encher.
+              </p>
+            </div>
+          ) : null}
         </div>
       </Secao>
 

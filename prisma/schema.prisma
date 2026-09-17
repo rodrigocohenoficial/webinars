@@ -62,6 +62,13 @@ model Webinar {
 
   /// participantes veem os comentarios uns dos outros na hora
   chatAoVivo Boolean @default(false)
+
+  /// mostrar para o participante quantos estao assistindo agora.
+  /// E numero de verdade: quem deu sinal nos ultimos 75 segundos.
+  mostrarAudiencia Boolean @default(true)
+  /// abaixo disso o numero nao aparece. Nao inflamos nada — so escolhemos
+  /// nao mostrar uma sala de duas pessoas, que esvazia em vez de encher.
+  audienciaMinima  Int     @default(3)
   /// ligar as legendas do provedor
   legendas   Boolean @default(false)
 

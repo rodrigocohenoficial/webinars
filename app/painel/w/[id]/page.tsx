@@ -37,6 +37,8 @@ export default async function ConfigurarWebinar({ params }: { params: Promise<{ 
     visibleSlots: String(w.visibleSlots),
     chatAoVivo: w.chatAoVivo,
     legendas: w.legendas,
+    mostrarAudiencia: w.mostrarAudiencia,
+    audienciaMinima: String(w.audienciaMinima),
     ctaLabel: w.ctaLabel ?? "",
     ctaUrl: w.ctaUrl ?? "",
     ctaDescription: w.ctaDescription ?? "",

@@ -100,6 +100,7 @@ export default function Chat({
   extras = [],
   ehApresentador = false,
   somenteLeitura = false,
+  aoSaberAudiencia,
 }: {
   token: string;
   trilha: Mensagem[];
@@ -110,6 +111,8 @@ export default function Chat({
   ehApresentador?: boolean;
   /** pre-visualizacao: so a trilha, sem consulta e sem escrever */
   somenteLeitura?: boolean;
+  /** o contador viaja nesta mesma consulta; quem mostra e o cabecalho */
+  aoSaberAudiencia?: (quantos: number | null) => void;
 }) {
   const [daSessao, setDaSessao] = useState<Mensagem[]>([]);
   const [enquete, setEnquete] = useState<EnqueteAtiva | null>(null);
@@ -134,11 +137,16 @@ export default function Chat({
       try {
         const r = await fetch(`/api/sala/${token}/chat`, { cache: "no-store" });
         if (!r.ok) return;
-        const d = (await r.json()) as { mensagens?: Mensagem[]; enquete?: EnqueteAtiva | null };
+        const d = (await r.json()) as {
+          mensagens?: Mensagem[];
+          enquete?: EnqueteAtiva | null;
+          assistindo?: number | null;
+        };
         if (!vivo) return;
         if (d.mensagens) setDaSessao(d.mensagens);
-        // Enquete e oferta viajam junto do chat: sem endpoint proprio.
+        // Enquete, oferta e contador viajam junto do chat: sem endpoint proprio.
         setEnquete(d.enquete ?? null);
+        aoSaberAudiencia?.(d.assistindo ?? null);
       } catch {
         // uma consulta perdida nao quebra nada: a proxima vem em 6 segundos
       }
@@ -149,6 +157,8 @@ export default function Chat({
       vivo = false;
       clearInterval(t);
     };
+    // aoSaberAudiencia e estavel por sessao de sala
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, somenteLeitura]);
 
   const todas = useMemo(() => unir(trilha, daSessao, locais, extras), [trilha, daSessao, locais, extras]);
