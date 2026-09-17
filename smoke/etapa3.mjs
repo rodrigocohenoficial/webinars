@@ -114,11 +114,14 @@ const seeksPos = await page.evaluate(() => window.__espiao.seeks.length);
 conferir(seeksPos === seeksPre, `deriva de 1,5s é tolerada, sem rebufferizar (seeks=${seeksPos - seeksPre})`);
 
 await page.evaluate(() => window.__player.__atrasar(10));
-await page.waitForTimeout(5000);
+// janela longa de propósito: é aqui que o laço apareceria
+await page.waitForTimeout(9000);
 const seeksFinal = await page.evaluate(() => window.__espiao.seeks);
+const quantos = seeksFinal.length - seeksPos;
+conferir(quantos >= 1, `deriva de 10s é corrigida (${quantos} seek)`);
 conferir(
-  seeksFinal.length > seeksPos,
-  `deriva de 10s é corrigida (${seeksFinal.length - seeksPos} seek)`,
+  quantos === 1,
+  `e corrigida UMA vez, não em laço — o player demora a reportar a posição nova (${quantos} em 9s)`,
 );
 if (seeksFinal.length > seeksPos) {
   const ultimo = seeksFinal[seeksFinal.length - 1].segundo;

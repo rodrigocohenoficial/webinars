@@ -19,11 +19,20 @@ const CORTINA_AO_ATIVAR_SOM_MS = 2600;
 const DERIVA_TOLERADA_SEG = 3;
 
 /**
- * De quanto em quanto tempo conferimos que a reproducao esta de pe e no
- * ponto. Curto de proposito: quanto antes a cortina sobe quando o video
- * para, menos marca do provedor aparece.
+ * De quanto em quanto tempo conferimos que a reproducao esta de pe. Curto de
+ * proposito: quanto antes a cortina sobe quando o video para, menos marca do
+ * provedor aparece. Esta passagem nunca reposiciona — so manda tocar.
  */
 const INTERVALO_VIGIA_MS = 700;
+
+/**
+ * Depois de reposicionar, o player do provedor demora para reportar a
+ * posicao nova: por alguns instantes getCurrentTime ainda devolve a antiga.
+ * Sem esta espera, a passagem seguinte le a posicao velha, conclui que ainda
+ * esta fora do lugar e manda outro seek — e o video fica em laco nos
+ * primeiros segundos, sem nunca assentar.
+ */
+const ESPERA_APOS_AJUSTE_MS = 4000;
 
 type Estado = "carregando" | "tocando" | "mudo" | "manual" | "erro";
 
@@ -138,20 +147,24 @@ export default function Palco({
   useEffect(() => {
     if (estado !== "tocando" && estado !== "mudo") return;
 
+    let ultimoAjusteMs = 0;
+
     const conferir = () => {
       const a = adaptadorRef.current;
       if (!a) return;
       if (document.visibilityState !== "visible") return;
 
       // A sessao nao para. Se parou — clique que escapou, provedor
-      // engasgando, aba que voltou — volta a tocar de onde o relogio esta.
+      // engasgando, aba que voltou — manda tocar de novo. Sem reposicionar:
+      // reposicionar aqui era o que criava o laco, porque parar e voltar
+      // acontece justamente nos instantes em que a posicao ainda nao
+      // assentou. Quem cuida de posicao e a deriva, la embaixo, com espera.
       //
       // E a cortina sobe junto: parado e exatamente quando o provedor mostra
       // a marca dele (titulo, avatar do canal, "mais videos", logo). Cobrir
       // por tempo fixo nao resolvia, porque o tempo parado nao e fixo.
       if (!a.tocando()) {
         setCortina(true);
-        a.posicionar(Math.max(0, alvoRef.current()));
         void a.tocar().catch(() => undefined);
         return;
       }
@@ -162,10 +175,18 @@ export default function Palco({
         return estava;
       });
 
+      // Deriva: corrige so quando passa do tolerado, e so depois do ajuste
+      // anterior ter assentado. Corrigir sempre rebufferiza, e e exatamente
+      // o que a armadilha 9.3 descreve como "a transmissao para".
+      if (Date.now() - ultimoAjusteMs < ESPERA_APOS_AJUSTE_MS) return;
+
       const alvo = alvoRef.current();
       const atual = a.tempoAtual();
       if (!Number.isFinite(atual)) return;
-      if (Math.abs(atual - alvo) > DERIVA_TOLERADA_SEG) a.posicionar(alvo);
+      if (Math.abs(atual - alvo) > DERIVA_TOLERADA_SEG) {
+        a.posicionar(Math.max(0, alvo));
+        ultimoAjusteMs = Date.now();
+      }
     };
 
     // Mais curto que a deriva: quanto antes a cortina sobe, menos marca do

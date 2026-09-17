@@ -92,7 +92,7 @@ export default async function Sessoes({
             ) : null}
             {s.kind !== "SCHEDULED" ? (
               <span className="selo bg-[var(--fundo-2)] text-[var(--texto-3)]">
-                {s.kind === "JIT" ? "comeca em N min" : "replay"}
+                {s.kind === "JIT" ? "entrada rapida" : "replay"}
               </span>
             ) : null}
           </div>

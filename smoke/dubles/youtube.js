@@ -67,10 +67,22 @@ document.addEventListener(
     this._mudar(PAUSED);
   };
 
+  /**
+   * O YouTube de verdade NÃO assenta na hora: por cerca de um segundo depois
+   * do seek, getCurrentTime ainda devolve a posição antiga. Um vigia que
+   * conferir nesse intervalo conclui que ainda está fora do lugar e manda
+   * outro seek — e o vídeo entra em laço. O dublê precisa mentir igual,
+   * senão o teste passa e a produção quebra.
+   */
+  var ASSENTA_EM_MS = 1200;
+
   Player.prototype.seekTo = function (s) {
     window.__espiao.seeks.push({ segundo: s, em: Date.now() });
-    this._base = s;
-    this._t0 = this._estado === PLAYING ? Date.now() : null;
+    var self = this;
+    setTimeout(function () {
+      self._base = s;
+      self._t0 = self._estado === PLAYING ? Date.now() : null;
+    }, ASSENTA_EM_MS);
   };
 
   Player.prototype.getCurrentTime = function () {
