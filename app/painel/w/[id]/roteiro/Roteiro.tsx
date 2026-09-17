@@ -2,10 +2,13 @@
 
 import { useActionState, useState } from "react";
 import { formatMinutoSegundo } from "@/lib/time";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import {
   adicionarComentario,
   colarEmLote,
   editarComentario,
+  limparRoteiro,
   removerComentario,
   type EstadoLote,
   type EstadoRoteiro,
@@ -90,6 +93,61 @@ function Linha({ c }: { c: ComentarioView }) {
         </form>
       </div>
     </li>
+  );
+}
+
+/**
+ * Duas etapas de proposito: apagar o roteiro inteiro nao pode ser um clique
+ * distraido. E, armadilha 9.6, so diz que limpou depois que o servidor
+ * confirmou.
+ */
+function BotaoLimpar({ webinarId }: { webinarId: string }) {
+  const router = useRouter();
+  const [confirmando, setConfirmando] = useState(false);
+  const [estado, setEstado] = useState<EstadoRoteiro>({});
+  const [limpando, iniciar] = useTransition();
+
+  if (!confirmando) {
+    return (
+      <button
+        type="button"
+        onClick={() => setConfirmando(true)}
+        className="text-[13px] text-[var(--texto-3)] hover:text-[var(--erro)]"
+      >
+        Limpar roteiro
+      </button>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-3 text-[13px]">
+      <span className="text-[var(--texto-2)]">Apagar todos?</span>
+      <button
+        type="button"
+        disabled={limpando}
+        onClick={() =>
+          iniciar(async () => {
+            const r = await limparRoteiro(webinarId);
+            setEstado(r);
+            if (r.ok) {
+              setConfirmando(false);
+              router.refresh();
+            }
+          })
+        }
+        className="font-semibold text-[var(--erro)] disabled:opacity-50"
+      >
+        {limpando ? "apagando..." : "sim, apagar"}
+      </button>
+      <button
+        type="button"
+        onClick={() => setConfirmando(false)}
+        className="text-[var(--texto-3)] hover:text-[var(--texto)]"
+      >
+        cancelar
+      </button>
+      {estado.erro ? <span className="text-[var(--erro)]">{estado.erro}</span> : null}
+    </span>
   );
 }
 
@@ -223,15 +281,18 @@ export default function Roteiro({
       </section>
 
       <section className="cartao">
-        <div className="mb-3 flex items-baseline justify-between">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="titulo-secao">
             {comentarios.length} comentario{comentarios.length === 1 ? "" : "s"} no roteiro
           </h2>
-          {duracaoSec ? (
-            <span className="ajuda">video de {formatMinutoSegundo(duracaoSec)}</span>
-          ) : (
-            <span className="text-[12px] text-[var(--alerta)]">sem video definido</span>
-          )}
+          <div className="flex items-center gap-4">
+            {duracaoSec ? (
+              <span className="ajuda">video de {formatMinutoSegundo(duracaoSec)}</span>
+            ) : (
+              <span className="text-[12px] text-[var(--alerta)]">sem video definido</span>
+            )}
+            {comentarios.length > 0 ? <BotaoLimpar webinarId={webinarId} /> : null}
+          </div>
         </div>
         {comentarios.length === 0 ? (
           <p className="text-[14px] text-[var(--texto-3)]">

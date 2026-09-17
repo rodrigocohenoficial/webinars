@@ -176,6 +176,26 @@ export async function editarComentario(
   return { ok: "Alterado." };
 }
 
+/**
+ * Apaga o roteiro inteiro de uma vez. Existe porque encher o roteiro para
+ * testar e depois desfazer na mao, um a um, e trabalho bobo — e o tipo de
+ * atrito que faz a pessoa deixar comentario de teste na sessao de verdade.
+ *
+ * So mexe no que voce escreveu (FAKE). Comentario de participante e do
+ * apresentador nao entra: aquilo e historico, e sai pela Curadoria.
+ */
+export async function limparRoteiro(webinarId: string): Promise<EstadoRoteiro> {
+  await exigirAdmin();
+
+  try {
+    const r = await db.chatMessage.deleteMany({ where: { webinarId, kind: "FAKE" } });
+    revalidatePath(`/painel/w/${webinarId}/roteiro`);
+    return { ok: `${r.count} comentario${r.count === 1 ? "" : "s"} removido${r.count === 1 ? "" : "s"}.` };
+  } catch {
+    return { erro: "Nao consegui limpar. Tente de novo." };
+  }
+}
+
 export async function removerComentario(id: string): Promise<void> {
   await exigirAdmin();
   const m = await db.chatMessage.findUnique({ where: { id }, select: { webinarId: true } });

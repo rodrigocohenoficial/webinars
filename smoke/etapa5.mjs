@@ -95,6 +95,20 @@ await sala.waitForTimeout(6000);
 const consultas = requisicoes.filter((u) => /\/api\/(chat|mensagens)/.test(u));
 conferir(consultas.length === 0, `a trilha não gera consulta periódica (${consultas.length} chamadas)`);
 
+// ── limpar o roteiro de uma vez ─────────────────────────────────────────
+await page.goto(`${BASE}/painel/w/${base.webinarId}/roteiro`);
+await page.waitForSelector("#lista-roteiro > li", { timeout: 20000 });
+await page.click("text=Limpar roteiro");
+await page.waitForSelector("text=sim, apagar", { timeout: 10000 });
+conferir(true, "limpar o roteiro pede confirmação antes");
+await page.click("text=sim, apagar");
+await page.waitForFunction(
+  () => document.querySelectorAll("#lista-roteiro > li").length === 0,
+  null,
+  { timeout: 20000 },
+);
+conferir(true, "o roteiro inteiro foi apagado de uma vez");
+
 await browser.close();
 console.log(falhas.length ? `\n${falhas.length} FALHA(S): ${falhas.join(" | ")}` : "\nETAPA 5 VERIFICADA");
 process.exit(falhas.length ? 1 : 0);
