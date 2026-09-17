@@ -220,13 +220,13 @@ function Tela({
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-5">
+    <main className="mx-auto w-full max-w-[1400px] px-4 py-5">
       <div className="mb-4">
         <h1 className="text-lg font-semibold leading-tight tracking-tight sm:text-xl">{dados.titulo}</h1>
         {dados.apresentador ? <p className="ajuda">Com {dados.apresentador}</p> : null}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div>
           {dados.video ? (
             <Palco
@@ -247,18 +247,24 @@ function Tela({
             />
           ) : null}
         </div>
-        {/* No desktop o grid estica: sem altura propria, o chat acompanha a
-            altura do player em vez de sobrar para baixo dele. */}
-        <div className="h-[420px] lg:h-auto lg:min-h-0">
-          <Chat
-            token={dados.token}
-            trilha={dados.trilha}
-            posicaoAlvo={posicaoAlvo}
-            podeEscrever={!dados.previa}
-            somenteLeitura={dados.previa}
-            ehApresentador={dados.ehApresentador}
-            cabecalho={dados.ehApresentador ? <Audiencia token={dados.token} /> : undefined}
-          />
+        {/*
+          A altura da linha tem que vir do player, nunca do chat. Por isso o
+          chat e absoluto dentro de uma celula vazia: assim ele nao empurra
+          nada, estica ate a altura do video e rola por dentro. Sem isso, a
+          conversa ia crescendo e empurrando a pagina a cada comentario novo.
+        */}
+        <div className="relative h-[420px] lg:h-auto">
+          <div className="h-full lg:absolute lg:inset-0">
+            <Chat
+              token={dados.token}
+              trilha={dados.trilha}
+              posicaoAlvo={posicaoAlvo}
+              podeEscrever={!dados.previa}
+              somenteLeitura={dados.previa}
+              ehApresentador={dados.ehApresentador}
+              cabecalho={dados.ehApresentador ? <Audiencia token={dados.token} /> : undefined}
+            />
+          </div>
         </div>
       </div>
     </main>

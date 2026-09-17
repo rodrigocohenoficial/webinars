@@ -34,6 +34,22 @@ const INTERVALO_VIGIA_MS = 700;
  */
 const ESPERA_APOS_AJUSTE_MS = 4000;
 
+/**
+ * Armadilha 9.4, levada a serio: nao existe parametro que desligue a marca do
+ * provedor. O YouTube estampa titulo e avatar do canal no alto, e logo,
+ * "mais videos" e botoes embaixo — e volta a mostrar tudo isso a cada
+ * mudanca de estado da reproducao.
+ *
+ * O que funciona e o mesmo recurso do video de fundo: dar ao player um
+ * tamanho maior que a caixa visivel, centralizado. A marca fica fora do
+ * quadro. Cobrir so as bordas com faixa opaca perderia a mesma area da
+ * imagem e ainda ficaria feio.
+ *
+ * 20% tira 10% de cada lado — a faixa do titulo do YouTube ocupa cerca de
+ * 8% do alto, e a linha de baixo (logo, "mais videos") outro tanto.
+ */
+const EXCESSO_DO_PLAYER = 1.2;
+
 type Estado = "carregando" | "tocando" | "mudo" | "manual" | "erro";
 
 export default function Palco({
@@ -53,6 +69,7 @@ export default function Palco({
   aoTerminar: () => void;
 }) {
   const caixaRef = useRef<HTMLDivElement | null>(null);
+  const molduraRef = useRef<HTMLDivElement | null>(null);
   const adaptadorRef = useRef<Adaptador | null>(null);
   const alvoRef = useRef(posicaoAlvo);
   alvoRef.current = posicaoAlvo;
@@ -65,15 +82,50 @@ export default function Palco({
     setTimeout(() => setCortina(false), emMs);
   }, []);
 
+  // Excesso: o player e maior que a caixa visivel, centralizado. Iframe nao
+  // obedece object-fit, entao medimos a caixa e damos o tamanho na mao.
+  useEffect(() => {
+    const caixa = caixaRef.current;
+    const moldura = molduraRef.current;
+    if (!caixa || !moldura) return;
+
+    const proporcao = aspectRatio === "9/16" ? 9 / 16 : 16 / 9;
+
+    const redimensionar = () => {
+      const c = caixaRef.current;
+      const m = molduraRef.current;
+      if (!c || !m) return;
+      const { width: L, height: A } = c.getBoundingClientRect();
+      if (!L || !A) return;
+
+      let l: number;
+      let a: number;
+      if (L / A > proporcao) {
+        l = L;
+        a = L / proporcao;
+      } else {
+        a = A;
+        l = A * proporcao;
+      }
+      m.style.width = `${l * EXCESSO_DO_PLAYER}px`;
+      m.style.height = `${a * EXCESSO_DO_PLAYER}px`;
+    };
+
+    redimensionar();
+    const observador = new ResizeObserver(redimensionar);
+    observador.observe(caixa);
+    return () => observador.disconnect();
+  }, [aspectRatio]);
+
   useEffect(() => {
     let vivo = true;
-    const caixa = caixaRef.current;
-    if (!caixa) return;
+    const moldura = molduraRef.current;
+    if (!moldura) return;
 
     const alvoElemento = document.createElement("div");
     alvoElemento.style.width = "100%";
     alvoElemento.style.height = "100%";
-    caixa.appendChild(alvoElemento);
+    moldura.appendChild(alvoElemento);
 
     const opcoes = {
       elemento: alvoElemento,
@@ -251,10 +303,12 @@ export default function Palco({
         "mais videos" e logo. Sem evento de ponteiro, o provedor nunca fica
         sabendo do clique.
       */}
-      <div
-        ref={caixaRef}
-        className="absolute inset-0 [&_iframe]:pointer-events-none [&_iframe]:h-full [&_iframe]:w-full"
-      />
+      <div ref={caixaRef} className="absolute inset-0 overflow-hidden">
+        <div
+          ref={molduraRef}
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 [&_iframe]:pointer-events-none [&_iframe]:h-full [&_iframe]:w-full"
+        />
+      </div>
 
       {/* Sem barra de progresso: nao da para adiantar, voltar nem pausar. */}
       <div className="absolute inset-0 z-10" aria-hidden />

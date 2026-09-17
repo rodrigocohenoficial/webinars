@@ -1,7 +1,14 @@
 import { db } from "./db";
 import { enviarEmail } from "./mail";
 import { enviarWhatsapp } from "./whatsapp";
-import { comecou, confirmacao, convite, lembrete, type Contexto } from "./mensagens";
+import {
+  ANTECEDENCIA_PARA_LEMBRETE_MIN,
+  comecou,
+  confirmacao,
+  convite,
+  lembrete,
+  type Contexto,
+} from "./mensagens";
 
 /**
  * Os quatro momentos da secao 4.2.
@@ -13,9 +20,6 @@ import { comecou, confirmacao, convite, lembrete, type Contexto } from "./mensag
 
 /** O lembrete pega sessoes que comecam nos proximos 16 minutos. */
 const JANELA_LEMBRETE_MIN = 16;
-
-/** Quem se inscreveu com menos que isso de antecedencia nao recebe lembrete. */
-const ANTECEDENCIA_PARA_LEMBRETE_MIN = 20;
 
 /**
  * O aviso de inicio pega da virada ate 4 minutos depois. A folga cobre atraso

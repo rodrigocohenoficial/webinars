@@ -4,6 +4,7 @@
  * apontam para ele) e conferimos as REGRAS, que é o que pode quebrar.
  */
 import { createServer } from "node:http";
+import { chromium } from "playwright";
 import { PrismaClient } from "@prisma/client";
 
 const BASE = process.env.BASE ?? "http://127.0.0.1:3000";
@@ -83,7 +84,7 @@ await db.registration.deleteMany({ where: { email: { contains: "@avisos.teste" }
 const wCom = await webinario("avisos-prontos");
 const wSem = await webinario("avisos-pendentes", { comVideo: false });
 
-const comAntecedencia = await inscrito(wCom, min(10), { criadoEm: min(-180), nome: "Marcia", email: "marcia@avisos.teste" });
+const comAntecedencia = await inscrito(wCom, min(10), { criadoEm: min(-180), nome: "MARCIA SANTOS", email: "marcia@avisos.teste" });
 const ultimaHora = await inscrito(wCom, min(10), { criadoEm: min(-5), nome: "Paulo", email: "paulo@avisos.teste" });
 const comecando = await inscrito(wCom, min(-2), { criadoEm: min(-120), nome: "Ana", email: "ana@avisos.teste" });
 const comecouHaMuito = await inscrito(wCom, min(-12), { criadoEm: min(-120), nome: "Jose", email: "jose@avisos.teste" });
@@ -156,6 +157,62 @@ const sujas = enviados.filter((e) =>
 );
 if (sujas.length) for (const s of sujas) console.log("   suspeita:", s.assunto, "|", s.corpo.slice(0, 160));
 conferir(sujas.length === 0, `5.6 nenhuma mensagem diz vídeo, gravação ou "ao vivo" (${sujas.length} suspeitas)`);
+
+// ── a confirmação não promete lembrete que não vai sair ────────────────
+//
+// A regra é uma só: quem se inscreve com menos de 20 minutos de
+// antecedência não recebe lembrete. Então a confirmação também não pode
+// prometer um. Inscrevemos pelas duas portas — "começa em 2h" e "começa em
+// 10 min" — e lemos o que saiu.
+async function confirmacaoDe(delayMin, email) {
+  await db.webinar.update({
+    where: { id: wCom.id },
+    data: { jitEnabled: true, jitDelayMin: delayMin, published: true },
+  });
+  limpar();
+
+  const navegador = await chromium.launch(
+    process.env.PW_CHROME ? { executablePath: process.env.PW_CHROME } : {},
+  );
+  const pagina = await navegador.newPage();
+  await pagina.goto(`${BASE}/w/${wCom.slug}`);
+  await pagina.waitForSelector("text=Garantir minha vaga", { timeout: 20000 });
+  await pagina.click("input[value=jit]");
+  await pagina.fill("#name", "RODRIGO SANTOS COHEN");
+  await pagina.fill("#email", email);
+  await pagina.fill("#phone", "(48) 99999-8888");
+  await pagina.click('button[type=submit]');
+  await pagina.waitForURL(/\/obrigado\//, { timeout: 25000 });
+  await navegador.close();
+
+  return enviados.find((e) => e.canal === "whatsapp") ?? enviados[0];
+}
+
+const longe = await confirmacaoDe(120, "longe@avisos.teste");
+log("2h antes:", (longe?.corpo ?? "").split("\n").filter(Boolean).pop());
+conferir(
+  /lembrete 15 minutos antes/.test(longe?.corpo ?? ""),
+  "com 2h de antecedência, a confirmação promete o lembrete",
+);
+
+const perto = await confirmacaoDe(10, "perto@avisos.teste");
+log("10 min antes:", (perto?.corpo ?? "").split("\n").filter(Boolean).pop());
+conferir(
+  !/lembrete 15 minutos antes/.test(perto?.corpo ?? ""),
+  "com 10 min, NÃO promete lembrete — ele não sairia mesmo",
+);
+conferir(
+  /Comeca em \d+ minutos/.test(perto?.corpo ?? ""),
+  "e diz em quantos minutos começa, que é o que serve ali",
+);
+conferir(
+  /Oi, Rodrigo\./.test(perto?.corpo ?? ""),
+  `nome em caixa alta vira nome, não grito (${(perto?.corpo ?? "").slice(0, 16)})`,
+);
+conferir(
+  /horario de Brasilia/.test(perto?.corpo ?? ""),
+  "a confirmação diz o fuso, para ninguém errar a hora",
+);
 
 servidor.close();
 await db.$disconnect();

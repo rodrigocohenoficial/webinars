@@ -13,7 +13,36 @@ export type Contexto = {
   apresentador?: string | null;
 };
 
-const primeiroNome = (nome: string) => nome.trim().split(/\s+/)[0];
+/**
+ * Quem se inscreve digita o nome como quiser — e muita gente digita em caixa
+ * alta. "Oi, RODRIGO" grita. Ajustamos so quando o nome vem todo maiusculo
+ * ou todo minusculo; se a pessoa escreveu "Ana Julia" ou "d'Avila", fica como
+ * ela escreveu.
+ */
+function primeiroNome(nome: string): string {
+  const primeiro = nome.trim().split(/\s+/)[0] ?? "";
+  if (!primeiro) return "";
+  const gritando = primeiro === primeiro.toUpperCase();
+  const sussurrando = primeiro === primeiro.toLowerCase();
+  if (!gritando && !sussurrando) return primeiro;
+  return primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase();
+}
+
+/**
+ * Quem se inscreve com menos que isto de antecedencia nao recebe lembrete —
+ * seria spam. Entao a confirmacao tambem nao pode prometer lembrete: quando
+ * a sessao comeca em 10 minutos, "mando um lembrete 15 minutos antes" e
+ * mentira, e o lembrete de fato nao sai.
+ */
+export const ANTECEDENCIA_PARA_LEMBRETE_MIN = 20;
+
+function vaiTerLembrete(inicio: Date): boolean {
+  return inicio.getTime() - Date.now() >= ANTECEDENCIA_PARA_LEMBRETE_MIN * 60000;
+}
+
+function minutosAte(inicio: Date): number {
+  return Math.max(1, Math.round((inicio.getTime() - Date.now()) / 60000));
+}
 
 function moldura(corpo: string): string {
   return `<!doctype html>
@@ -35,20 +64,36 @@ function botao(link: string, texto: string): string {
 
 export const confirmacao = {
   assunto: (c: Contexto) => `Sua vaga esta confirmada — ${c.titulo}`,
+
   html: (c: Contexto) =>
     moldura(`
       <p style="margin:0 0 14px;font-size:19px;font-weight:600;">Pronto, ${primeiroNome(c.nome)}.</p>
-      <p style="margin:0 0 6px;">Sua vaga em <strong>${c.titulo}</strong> esta confirmada.</p>
-      <p style="margin:0 0 20px;"><strong>${formatSlotLongo(c.inicio)}</strong></p>
+      <p style="margin:0 0 16px;">Sua vaga em <strong>${c.titulo}</strong> esta confirmada.</p>
+
+      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 20px;background:#f4f7f5;border-left:3px solid #12b76a;border-radius:0 8px 8px 0;">
+        <tr><td style="padding:14px 16px;">
+          <p style="margin:0 0 3px;color:#667085;font-size:12px;text-transform:uppercase;letter-spacing:.06em;">Anote ai</p>
+          <p style="margin:0;font-size:17px;font-weight:600;color:#14181f;">${formatSlotLongo(c.inicio)}</p>
+          <p style="margin:3px 0 0;color:#667085;font-size:13px;">horario de Brasilia</p>
+        </td></tr>
+      </table>
+
       <p style="margin:0 0 20px;">Guarde este link. Ele e so seu, e abre a sala na hora marcada.</p>
       <p style="margin:0 0 22px;">${botao(c.link, "Abrir minha sala")}</p>
-      <p style="margin:0;color:#667085;font-size:13px;">Mando um lembrete 15 minutos antes.</p>
+      <p style="margin:0;color:#667085;font-size:13px;">${
+        vaiTerLembrete(c.inicio)
+          ? "Mando um lembrete 15 minutos antes."
+          : `Comeca em ${minutosAte(c.inicio)} minutos. Deixe a pagina aberta: ela comeca sozinha.`
+      }</p>
     `),
+
   whatsapp: (c: Contexto) =>
     `Oi, ${primeiroNome(c.nome)}. Sua vaga em *${c.titulo}* esta confirmada.\n\n` +
-    `${formatSlotLongo(c.inicio)}\n\n` +
+    `Anote ai:\n*${formatSlotLongo(c.inicio)}*\n(horario de Brasilia)\n\n` +
     `Este link e so seu e abre a sala na hora:\n${c.link}\n\n` +
-    `Mando um lembrete 15 minutos antes.`,
+    (vaiTerLembrete(c.inicio)
+      ? "Mando um lembrete 15 minutos antes."
+      : `Comeca em ${minutosAte(c.inicio)} minutos. Deixe a pagina aberta: ela comeca sozinha.`),
 };
 
 export const lembrete = {
