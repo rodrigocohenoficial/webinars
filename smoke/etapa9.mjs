@@ -25,6 +25,7 @@ const servidor = createServer((req, res) => {
       para: dados.to?.[0] ?? dados.phone,
       assunto: dados.subject ?? "",
       corpo: dados.html ?? dados.message ?? "",
+      responderPara: dados.reply_to ?? null,
     });
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ id: "msg_" + enviados.length, messageId: "zap_" + enviados.length }));
@@ -122,6 +123,14 @@ conferir(emailsPara("antigo@avisos.teste").length === 0, "o teto de 6h impede di
 
 const conviteRita = emailsPara("rita@avisos.teste")[0];
 conferir(/\/replay\//.test(conviteRita?.corpo ?? ""), "o convite leva para o link de replay individual");
+
+// quem responder "nao consigo entrar" precisa chegar em alguem
+const comResposta = enviados.filter((e) => e.canal === "email" && e.responderPara);
+conferir(
+  comResposta.length === enviados.filter((e) => e.canal === "email").length &&
+    comResposta.length > 0,
+  `todo e-mail sai com endereco de resposta (${comResposta[0]?.responderPara})`,
+);
 
 // ── o carimbo é a trava, não a frequência do agendador ──────────────────
 limpar();

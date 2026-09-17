@@ -22,6 +22,11 @@ export async function enviarEmail(opcoes: {
 }): Promise<boolean> {
   if (!emailConfigurado()) return false;
 
+  // O remetente e uma caixa que nao existe — e-mail de sistema e so de
+  // saida. Sem isto, quem responder "nao consigo entrar" escreve para o
+  // vazio, e essa e justamente a pessoa que precisa de resposta.
+  const responderPara = process.env.RESEND_REPLY_TO;
+
   try {
     const res = await fetch(endereco(), {
       method: "POST",
@@ -34,6 +39,7 @@ export async function enviarEmail(opcoes: {
         to: [opcoes.para],
         subject: opcoes.assunto,
         html: opcoes.html,
+        ...(responderPara ? { reply_to: responderPara } : {}),
       }),
     });
     return res.ok;

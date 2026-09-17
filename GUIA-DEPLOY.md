@@ -125,33 +125,129 @@ Exemplo real: `https://webinars-abc123.vercel.app/api/cron?secret=98a7sd98a7sd..
 
 ## Parte 4 — E-mail (20 minutos, grátis até 3.000/mês)
 
-**Precisa de um domínio seu.** Se você ainda não tem, pule esta parte e volte depois —
-o sistema roda sem.
+Esta é a única parte do guia que fala de uma coisa invisível. Por isso ela confunde.
+Leia a explicação antes de clicar em nada — depois os passos ficam óbvios.
 
-1. Abra **resend.com**, crie conta.
-2. Menu **Domains** → **Add Domain** → digite seu domínio (ex: `tradernation.com.br`).
-3. Ele mostra **3 ou 4 registros de DNS** (uns códigos em tabela).
-4. Esses registros precisam ser colados no painel onde seu domínio está registrado —
-   Registro.br, Cloudflare, GoDaddy, HostGator, o que for. **Se você não cuida do seu
-   domínio, manda essa tela para quem cuida.** É o único passo deste guia que talvez
-   não seja você quem faz.
-5. Volte no Resend e clique em **Verify**. Pode levar de 5 minutos a algumas horas.
-   Quando ficar verde, siga.
+### Por que este passo existe
+
+E-mail foi inventado como carta com remetente escrito à mão: **qualquer um pode
+escrever qualquer remetente no envelope.** Se o sistema simplesmente mandar um e-mail
+dizendo "sou do tradernation.com.br", o Gmail não tem motivo nenhum para acreditar. Ele
+joga no spam, ou recusa.
+
+O que você vai fazer aqui é deixar um recado público, pendurado no seu domínio, dizendo:
+*"eu autorizo o Resend a mandar e-mail em meu nome"*. O Gmail vai lá conferir esse
+recado antes de entregar. É só isso.
+
+### O que é DNS, sem termo técnico
+
+É a lista telefônica do seu domínio. Quando alguém digita `tradernation.com.br`, o
+computador consulta essa lista para saber onde o site mora.
+
+Na mesma lista dá para pendurar **bilhetes de texto**. É isso que o Resend te pede: três
+bilhetes.
+
+> Adicionar bilhete nessa lista **não mexe no seu site, não mexe no e-mail que você já
+> usa, e não derruba nada.** São linhas novas numa lista que já existe. Se você errar,
+> nada quebra: o Resend simplesmente não verifica e você corrige.
+
+### Onde fica essa lista
+
+**Não é no Resend e não é na Vercel.** É onde seu domínio está registrado ou apontado:
+Registro.br, Cloudflare, GoDaddy, Hostinger, HostGator, Locaweb. Um desses.
+
+Se você não sabe qual é, quem cuida do seu site sabe na hora.
+
+### Qual domínio usar — e por que num subdomínio
+
+Use o domínio da marca onde a pessoa vai comprar. Se o webinário vende produto da
+Trader Nation, o remetente é `tradernation.com.br`. Remetente de um domínio e link de
+outro derruba confiança e levanta suspeita em filtro de spam.
+
+Mas **não use o domínio raiz. Use um subdomínio:**
+
+```
+envio.tradernation.com.br
+```
+
+O motivo é reputação. Se um dia uma lista vier fria e muita gente marcar como spam, o
+estrago fica preso nesse subdomínio e **não contamina o e-mail principal da empresa** —
+contrato, suporte, cobrança continuam entregando normalmente. É a única razão, e é
+suficiente. Não custa nada a mais: no Resend você digita `envio.tradernation.com.br` em
+vez de `tradernation.com.br`, e o resto é igual.
+
+O nome que aparece para quem recebe é o que você põe na frente, não o domínio:
+
+```
+RESEND_FROM_EMAIL = Rodrigo Cohen <webinario@envio.tradernation.com.br>
+```
+
+A pessoa vê **Rodrigo Cohen**. O domínio fica escondido.
+
+### Os passos
+
+1. Crie conta em **resend.com**.
+2. Menu **Domains** → **Add Domain** → digite `envio.seudominio.com.br`.
+3. Ele mostra uma tabela com **três linhas**. Cada linha tem três colunas:
+   **Type** (tipo), **Name** (nome) e **Value** (valor).
+4. Abra o painel onde seu domínio está registrado, procure **DNS** ou **Zona DNS**, e
+   crie **três registros novos**, copiando coluna por coluna. É cópia e cola, nada mais.
+
+   O que cada um faz, para você não achar que está fazendo mágica:
+
+   | Bilhete | O que ele diz |
+   |---|---|
+   | SPF | "o Resend tem permissão de mandar e-mail por mim" |
+   | DKIM | uma assinatura que carimba cada e-mail e prova que ninguém adulterou no caminho |
+   | DMARC | o que fazer com quem tentar se passar por você |
+
+5. Volte no Resend e clique em **Verify**.
+
+### As três pegadinhas — é aqui que todo mundo trava
+
+**1. O campo Name quase sempre engana.** Muitos painéis já completam o domínio sozinhos.
+Se o Resend manda pôr `send.envio.tradernation.com.br` e o painel já mostra
+`.tradernation.com.br` cinza do lado do campo, você digita **só `send.envio`**. Colar
+inteiro cria `send.envio.tradernation.com.br.tradernation.com.br` — e nunca verifica.
+
+> Esse é o erro número um, de longe. Se não verificar, olhe o campo Name primeiro.
+
+**2. O campo Value tem que ir inteiro.** Use o botão de copiar do Resend, não selecione
+com o mouse. Sem espaço sobrando no fim, sem quebra de linha no meio.
+
+**3. Demora.** De 5 minutos a algumas horas para a lista se espalhar pelo mundo. Se
+ainda não ficou verde, **não é você que errou.** Vá tomar um café e clique em Verify de
+novo.
+
+### Depois que ficar verde
+
 6. Menu **API Keys** → **Create API Key** → copie o código (começa com `re_`).
-7. Vá na **Vercel** → seu projeto → **Settings** → **Environment Variables** e
-   adicione duas:
+7. Vá na **Vercel** → seu projeto → **Settings** → **Environment Variables** e adicione:
 
 | Nome | Valor |
 |---|---|
 | `RESEND_API_KEY` | o código que começa com `re_` |
-| `RESEND_FROM_EMAIL` | `Rodrigo Cohen <webinario@seudominio.com.br>` |
+| `RESEND_FROM_EMAIL` | `Rodrigo Cohen <webinario@envio.seudominio.com.br>` |
+| `RESEND_REPLY_TO` | o e-mail que você lê de verdade |
 
-8. **Deployments** → nos três pontinhos do último deploy → **Redeploy**.
+8. **Deployments** → três pontinhos do último deploy → **Redeploy**.
 
-Teste: inscreva-se você mesmo na sua página. O e-mail de confirmação tem que chegar
-em segundos.
+> **Sobre a caixa que não existe:** `webinario@envio.seudominio.com.br` **não precisa
+> existir como caixa de entrada.** Você não vai criar e-mail nenhum — é só o nome que
+> aparece no remetente. Mas alguém **vai** responder ("não consegui entrar", "o link não
+> abre"), e essa é justamente a pessoa que precisa de resposta. É para isso que serve
+> `RESEND_REPLY_TO`: a resposta cai na sua caixa de verdade.
 
----
+### Como saber que deu certo
+
+Inscreva-se você mesmo na sua página. O e-mail de confirmação chega em segundos.
+Se chegou **na caixa de entrada e não no spam**, acabou.
+
+### Se não quiser mexer nisso agora
+
+Pule esta parte inteira. O sistema roda sem e-mail: a inscrição funciona, a sala
+funciona, o chat, a oferta e as métricas funcionam. Você só não dispara os quatro
+avisos. Dá para voltar aqui em qualquer dia, sem refazer nada.
 
 ## Parte 5 — WhatsApp (15 minutos, pago)
 

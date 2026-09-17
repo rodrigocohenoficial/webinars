@@ -83,11 +83,16 @@ Quatro momentos, automáticos, pelos dois canais:
 
 ```
 RESEND_API_KEY        conta no resend.com, domínio verificado
-RESEND_FROM_EMAIL     Rodrigo Cohen <webinario@seudominio.com.br>
+RESEND_FROM_EMAIL     Rodrigo Cohen <webinario@envio.seudominio.com.br>
+RESEND_REPLY_TO       o e-mail que você lê de verdade
 ZAPI_INSTANCE         painel da Z-API
 ZAPI_TOKEN
 ZAPI_CLIENT_TOKEN
 ```
+
+O remetente é uma caixa que não existe — e-mail de sistema só sai, não recebe. Mas
+alguém sempre responde "não consegui entrar", e é justamente quem mais precisa de
+resposta. `RESEND_REPLY_TO` manda essa resposta para a sua caixa de verdade.
 
 Sem essas variáveis o sistema roda inteiro e nada quebra — só não dispara nada.
 
