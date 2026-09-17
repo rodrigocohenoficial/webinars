@@ -315,6 +315,11 @@ Teste: inscreva-se de novo com seu WhatsApp. A confirmação chega nos dois cana
    > `CRON_SECRET`, `RESEND_API_KEY` e as três do WhatsApp **são segredo de verdade** e
    > devem ficar como `Secret`.
 
+   **Se você já salvou como `Secret`, não dá para converter.** A opção `Config` aparece
+   cinza, dizendo *"Saved secrets are write-only"* — a Vercel guarda Secret de um jeito
+   que ela mesma não consegue ler de volta. Apague a variável (três pontinhos no fim da
+   linha → Remove) e crie de novo com Type `Config`. Variável nova aceita.
+
 6. **Redeploy.** Esse último passo é obrigatório — é essa variável que monta os links
    que vão dentro dos e-mails.
 7. Abra `https://webinar.seudominio.com.br/api/saude` e confirme que o endereço que
@@ -360,6 +365,7 @@ existe e o segredo na URL é que está diferente do `CRON_SECRET` da Vercel.
 | O agendador devolve 401 | O segredo na URL está diferente do `CRON_SECRET`. |
 | O agendador foi desativado sozinho | O cron-job.org desliga depois de muitas falhas seguidas. Resolva a causa e reative na conta dele. |
 | "Remove the public framework prefix" ao salvar variável | Você marcou como `Secret` uma variável `NEXT_PUBLIC_`. Troque o Type para `Config`. |
+| `Config` aparece cinza, "saved secrets are write-only" | A variável já foi salva como `Secret` e não dá para converter. Apague e crie de novo como `Config`. |
 | Mudei algo e nada mudou | Redeploy. É quase sempre isso. |
 
 ---
