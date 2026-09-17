@@ -76,7 +76,8 @@ export async function GET() {
       enderecoDoSite: site || "(vazio)",
       obrigatorias: Object.fromEntries(obrigatorias.map((n) => [n, preenchida(n)])),
       canaisOpcionais: canais,
-      agendador: "chame /api/cron?secret=SEU_CRON_SECRET — 200 e certo, 401 e segredo errado",
+      agendador:
+        "chame /api/cron trocando o final por ?secret= mais o valor real da sua variavel CRON_SECRET. 200 e certo; 401 quer dizer que o valor nao bate (colar o texto de exemplo aqui tambem devolve 401).",
     },
     { headers: { "cache-control": "no-store" } },
   );
