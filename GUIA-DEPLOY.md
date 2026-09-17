@@ -281,13 +281,44 @@ Teste: inscreva-se de novo com seu WhatsApp. A confirmação chega nos dois cana
 
 ## Parte 6 — Seu domínio no lugar do .vercel.app (opcional)
 
+> **Use um subdomínio diferente do que você verificou no Resend.** O site e o e-mail
+> pedem registros de DNS diferentes no mesmo nome, e isso briga. Se o e-mail ficou em
+> `envio.seudominio.com.br`, o site vai em `webinar.seudominio.com.br` — ou vice-versa.
+> Nunca os dois no mesmo.
+
 1. **Vercel** → seu projeto → **Settings** → **Domains** → **Add**.
-2. Digite `webinario.seudominio.com.br`.
+2. Digite `webinar.seudominio.com.br`.
 3. Ele mostra um registro **CNAME**. Cole no painel do seu domínio, igual à parte 4.
-4. Quando ficar verde, volte em **Environment Variables** e mude
-   `NEXT_PUBLIC_SITE_URL` para `https://webinario.seudominio.com.br`.
-5. **Redeploy.** Esse último passo é obrigatório — é essa variável que monta os links
-   que vão nos e-mails.
+4. **Espere ficar verde na Vercel antes de seguir.** Se você mudar a variável abaixo
+   antes do domínio funcionar, todo link que sair nos e-mails aponta para um endereço
+   morto.
+5. Ficou verde: volte em **Environment Variables** e mude `NEXT_PUBLIC_SITE_URL`.
+
+   Duas coisas que travam gente aqui:
+
+   **O valor precisa do `https://` na frente.** Não é `webinar.seudominio.com.br`, é:
+
+   ```
+   https://webinar.seudominio.com.br
+   ```
+
+   Sem barra no fim.
+
+   **O Type tem que ser `Config`, não `Secret`.** A Vercel recusa marcar como Secret
+   qualquer variável que comece com `NEXT_PUBLIC_`, e mostra um recado vermelho
+   dizendo isso. Não é erro seu: `NEXT_PUBLIC_` significa, por definição, um valor que
+   vai para o navegador de quem visita. É o endereço público do seu site — ele aparece
+   na barra do navegador de qualquer visitante. Não há nada a esconder, e por isso
+   `Config` é o certo.
+
+   > As outras variáveis são o oposto: `DATABASE_URL`, `AUTH_SECRET`, `ADMIN_PASSWORD`,
+   > `CRON_SECRET`, `RESEND_API_KEY` e as três do WhatsApp **são segredo de verdade** e
+   > devem ficar como `Secret`.
+
+6. **Redeploy.** Esse último passo é obrigatório — é essa variável que monta os links
+   que vão dentro dos e-mails.
+7. Abra `https://webinar.seudominio.com.br/api/saude` e confirme que o endereço que
+   aparece em `enderecoDoSite` é o novo, sem barra sobrando e com `https://`.
 
 ---
 
@@ -328,6 +359,7 @@ existe e o segredo na URL é que está diferente do `CRON_SECRET` da Vercel.
 | O agendador devolve 404 | O site não está publicado. Veja acima. |
 | O agendador devolve 401 | O segredo na URL está diferente do `CRON_SECRET`. |
 | O agendador foi desativado sozinho | O cron-job.org desliga depois de muitas falhas seguidas. Resolva a causa e reative na conta dele. |
+| "Remove the public framework prefix" ao salvar variável | Você marcou como `Secret` uma variável `NEXT_PUBLIC_`. Troque o Type para `Config`. |
 | Mudei algo e nada mudou | Redeploy. É quase sempre isso. |
 
 ---
