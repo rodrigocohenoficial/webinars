@@ -59,6 +59,21 @@ export async function GET() {
     problemas.push("NEXT_PUBLIC_SITE_URL esta com uma barra sobrando no fim. Tire a barra.");
   }
 
+  /**
+   * O remetente nao e segredo: ele aparece na caixa de entrada de todo mundo
+   * que se inscreve. Mostrar aqui evita ter que caçar o valor na Vercel, que
+   * guarda variavel como Secret e nao deixa ler de volta.
+   */
+  const remetenteBruto = process.env.RESEND_FROM_EMAIL ?? "";
+  const endereco = /<([^>]+)>/.exec(remetenteBruto)?.[1] ?? remetenteBruto;
+  const dominioDoRemetente = endereco.includes("@") ? endereco.split("@")[1].trim() : "";
+
+  if (process.env.RESEND_API_KEY && !dominioDoRemetente) {
+    problemas.push(
+      "RESEND_FROM_EMAIL nao tem um endereco de e-mail valido. Use o formato: Nome <caixa@subdominio.seudominio.com.br>",
+    );
+  }
+
   const canais = {
     email: preenchida("RESEND_API_KEY") && preenchida("RESEND_FROM_EMAIL"),
     respostaDeEmail: preenchida("RESEND_REPLY_TO"),
@@ -76,6 +91,13 @@ export async function GET() {
       enderecoDoSite: site || "(vazio)",
       obrigatorias: Object.fromEntries(obrigatorias.map((n) => [n, preenchida(n)])),
       canaisOpcionais: canais,
+      remetente: {
+        de: remetenteBruto || "(nao configurado)",
+        dominioDoRemetente: dominioDoRemetente || "(nenhum)",
+        respostaVaiPara: process.env.RESEND_REPLY_TO ?? "(nao configurado)",
+        conferir:
+          "o dominio acima tem que ser exatamente o que esta verde no Resend, senao ele recusa o envio",
+      },
       agendador:
         "chame /api/cron trocando o final por ?secret= mais o valor real da sua variavel CRON_SECRET. 200 e certo; 401 quer dizer que o valor nao bate (colar o texto de exemplo aqui tambem devolve 401).",
     },
