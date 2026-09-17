@@ -8,10 +8,22 @@ import { criarVimeo } from "./vimeo";
 /** Armadilha 9.4: a marca do provedor aparece nos primeiros segundos. */
 const CORTINA_MS = 4000;
 
+/**
+ * O provedor tambem pisca a propria marca — titulo, avatar do canal — quando
+ * a reproducao muda de estado por comando nosso. Ativar o som e um desses
+ * momentos, e a cortina cobre o piscada.
+ */
+const CORTINA_AO_ATIVAR_SOM_MS = 2600;
+
 /** Armadilha 9.3: so ressincroniza quando a deriva passa disso. */
 const DERIVA_TOLERADA_SEG = 3;
 
-const INTERVALO_DERIVA_MS = 2000;
+/**
+ * De quanto em quanto tempo conferimos que a reproducao esta de pe e no
+ * ponto. Curto de proposito: quanto antes a cortina sobe quando o video
+ * para, menos marca do provedor aparece.
+ */
+const INTERVALO_VIGIA_MS = 700;
 
 type Estado = "carregando" | "tocando" | "mudo" | "manual" | "erro";
 
@@ -40,8 +52,8 @@ export default function Palco({
   const [cortina, setCortina] = useState(true);
   const [motivoErro, setMotivoErro] = useState<string | null>(null);
 
-  const abrirCortina = useCallback(() => {
-    setTimeout(() => setCortina(false), CORTINA_MS);
+  const abrirCortina = useCallback((emMs = CORTINA_MS) => {
+    setTimeout(() => setCortina(false), emMs);
   }, []);
 
   useEffect(() => {
@@ -130,13 +142,35 @@ export default function Palco({
       const a = adaptadorRef.current;
       if (!a) return;
       if (document.visibilityState !== "visible") return;
+
+      // A sessao nao para. Se parou — clique que escapou, provedor
+      // engasgando, aba que voltou — volta a tocar de onde o relogio esta.
+      //
+      // E a cortina sobe junto: parado e exatamente quando o provedor mostra
+      // a marca dele (titulo, avatar do canal, "mais videos", logo). Cobrir
+      // por tempo fixo nao resolvia, porque o tempo parado nao e fixo.
+      if (!a.tocando()) {
+        setCortina(true);
+        a.posicionar(Math.max(0, alvoRef.current()));
+        void a.tocar().catch(() => undefined);
+        return;
+      }
+
+      // Voltou a tocar: a cortina pode descer.
+      setCortina((estava) => {
+        if (estava) abrirCortina(1200);
+        return estava;
+      });
+
       const alvo = alvoRef.current();
       const atual = a.tempoAtual();
       if (!Number.isFinite(atual)) return;
       if (Math.abs(atual - alvo) > DERIVA_TOLERADA_SEG) a.posicionar(alvo);
     };
 
-    const t = setInterval(conferir, INTERVALO_DERIVA_MS);
+    // Mais curto que a deriva: quanto antes a cortina sobe, menos marca do
+    // provedor aparece.
+    const t = setInterval(conferir, INTERVALO_VIGIA_MS);
     const aoVoltar = () => {
       // Notebook que dormiu volta com o relogio parado: confere na hora,
       // sem esperar o proximo intervalo.
@@ -147,6 +181,7 @@ export default function Palco({
       clearInterval(t);
       document.removeEventListener("visibilitychange", aoVoltar);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
 
   /**
@@ -157,6 +192,7 @@ export default function Palco({
   async function ativarSom() {
     const a = adaptadorRef.current;
     if (!a) return;
+    setCortina(true);
     a.definirMudo(false);
     try {
       await a.tocar();
@@ -164,6 +200,7 @@ export default function Palco({
     } catch {
       setEstado("mudo");
     }
+    setTimeout(() => setCortina(false), CORTINA_AO_ATIVAR_SOM_MS);
   }
 
   async function entrarManualmente() {
@@ -186,7 +223,17 @@ export default function Palco({
       className="relative w-full overflow-hidden rounded-xl bg-black"
       style={{ aspectRatio: aspectRatio === "9/16" ? "9 / 16" : "16 / 9" }}
     >
-      <div ref={caixaRef} className="absolute inset-0 [&_iframe]:h-full [&_iframe]:w-full" />
+      {/*
+        pointer-events-none no iframe e o que realmente impede pausar. Um
+        <div> por cima nao basta: o clique ainda encontrava o player do
+        provedor, que pausava e abria a tela de pausa dele — titulo, avatar,
+        "mais videos" e logo. Sem evento de ponteiro, o provedor nunca fica
+        sabendo do clique.
+      */}
+      <div
+        ref={caixaRef}
+        className="absolute inset-0 [&_iframe]:pointer-events-none [&_iframe]:h-full [&_iframe]:w-full"
+      />
 
       {/* Sem barra de progresso: nao da para adiantar, voltar nem pausar. */}
       <div className="absolute inset-0 z-10" aria-hidden />
@@ -199,7 +246,7 @@ export default function Palco({
           ) : null}
           <div className="relative flex items-center gap-2.5 text-[14px] text-[var(--texto-2)]">
             <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--acento)]" />
-            entrando na sessao
+            {estado === "mudo" ? "ligando o som" : "entrando na sessao"}
           </div>
         </div>
       ) : null}

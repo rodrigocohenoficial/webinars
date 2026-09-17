@@ -247,7 +247,9 @@ function Tela({
             />
           ) : null}
         </div>
-        <div className="h-[420px] lg:h-[min(70vh,640px)]">
+        {/* No desktop o grid estica: sem altura propria, o chat acompanha a
+            altura do player em vez de sobrar para baixo dele. */}
+        <div className="h-[420px] lg:h-auto lg:min-h-0">
           <Chat
             token={dados.token}
             trilha={dados.trilha}

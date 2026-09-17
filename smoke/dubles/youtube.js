@@ -9,7 +9,7 @@
  * Tudo que a sala fez fica registrado em window.__espiao, para o teste
  * poder afirmar coisas como "não houve seek no gesto de desmutar".
  */
-window.__espiao = { seeks: [], vars: null, plays: 0, estados: [], mutes: [] };
+window.__espiao = { seeks: [], vars: null, plays: 0, estados: [], mutes: [], modulosDescarregados: [] };
 window.__permitirSomAutomatico = window.__permitirSomAutomatico || false;
 window.__houveGesto = false;
 
@@ -82,6 +82,10 @@ document.addEventListener(
   Player.prototype.unMute = function () { this._mudo = false; window.__espiao.mutes.push(false); };
   Player.prototype.isMuted = function () { return this._mudo; };
   Player.prototype.setVolume = function () {};
+  Player.prototype.loadModule = function (n) { window.__espiao.modulosDescarregados = window.__espiao.modulosDescarregados.filter(function (m) { return m !== n; }); };
+  Player.prototype.unloadModule = function (n) { window.__espiao.modulosDescarregados.push(n); };
+  /** Só para o teste: simula alguém pausando o vídeo por fora. */
+  Player.prototype.__pausarPorFora = function () { this.pauseVideo(); };
   Player.prototype.destroy = function () {};
 
   /** Só para o teste: simula o player ficando para trás do relógio. */

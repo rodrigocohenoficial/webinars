@@ -2,6 +2,8 @@ import type { Adaptador, OpcoesAdaptador } from "./tipos";
 
 type YTPlayer = {
   playVideo(): void;
+  loadModule(nome: string): void;
+  unloadModule(nome: string): void;
   pauseVideo(): void;
   seekTo(s: number, allowSeekAhead: boolean): void;
   getCurrentTime(): number;
@@ -62,6 +64,24 @@ function carregarApi(): Promise<YTNamespace> {
   return carregando;
 }
 
+/**
+ * Desliga a legenda de verdade.
+ *
+ * O parametro cc_load_policy so decide se a legenda e FORCADA a aparecer;
+ * com 0, quem tem legenda ligada na propria conta do YouTube continua vendo.
+ * Os dois modulos existem porque o nome mudou entre versoes do player, e
+ * chamar o que nao existe nao quebra nada.
+ */
+function desligarLegendas(player: YTPlayer): void {
+  for (const modulo of ["captions", "cc"]) {
+    try {
+      player.unloadModule(modulo);
+    } catch {
+      // esse player nao tem esse modulo
+    }
+  }
+}
+
 export async function criarYoutube(o: OpcoesAdaptador): Promise<Adaptador> {
   const YT = await carregarApi();
 
@@ -77,6 +97,9 @@ export async function criarYoutube(o: OpcoesAdaptador): Promise<Adaptador> {
         iv_load_policy: 3,
         playsinline: 1,
         modestbranding: 1,
+        // cc_load_policy: 0 nao desliga legenda. Ele so nao FORCA a legenda —
+        // se a conta do visitante tem legenda ligada por padrao, ela aparece
+        // assim mesmo. Quem desliga de verdade e o unloadModule abaixo.
         cc_load_policy: o.legendas ? 1 : 0,
         cc_lang_pref: "pt",
         start: Math.max(0, Math.floor(o.inicioSec)),
@@ -85,7 +108,10 @@ export async function criarYoutube(o: OpcoesAdaptador): Promise<Adaptador> {
       events: {
         onReady: () => resolve(p),
         onStateChange: (e) => {
-          if (e.data === YT.PlayerState.PLAYING) o.aoComecarATocar();
+          if (e.data === YT.PlayerState.PLAYING) {
+            if (!o.legendas) desligarLegendas(p);
+            o.aoComecarATocar();
+          }
           if (e.data === YT.PlayerState.ENDED) o.aoTerminar();
         },
         onError: () => reject(new Error("o YouTube recusou este video")),
@@ -116,10 +142,15 @@ export async function criarYoutube(o: OpcoesAdaptador): Promise<Adaptador> {
     async tocar() {
       player.playVideo();
       await confirmarQueTocou();
+      if (!o.legendas) desligarLegendas(player);
     },
     pausar: () => player.pauseVideo(),
     posicionar: (s) => player.seekTo(Math.max(0, s), true),
     tempoAtual: () => player.getCurrentTime() || 0,
+    tocando: () => {
+      const e = player.getPlayerState();
+      return e === YT.PlayerState.PLAYING || e === YT.PlayerState.BUFFERING;
+    },
     mudo: () => player.isMuted(),
     definirMudo: (v) => {
       if (v) player.mute();

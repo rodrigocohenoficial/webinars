@@ -62,9 +62,6 @@ function Bolha({
         ) : null}
         {m.enviando ? <span className="text-[11px] text-[var(--texto-3)]">enviando...</span> : null}
         {m.falhou ? <span className="text-[11px] text-[var(--erro)]">nao enviou</span> : null}
-        {!m.enviando && !m.falhou && m.minha && m.aguardando ? (
-          <span className="text-[11px] text-[var(--texto-3)]">so voce ve por enquanto</span>
-        ) : null}
       </div>
       <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-[var(--texto-2)]">
         {m.texto}

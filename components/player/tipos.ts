@@ -21,6 +21,8 @@ export type Adaptador = {
   /** posiciona. Caro: rebufferiza. Nunca chamar junto de desmutar (9.3). */
   posicionar(segundo: number): void;
   tempoAtual(): number;
+  /** esta tocando de fato agora? (buffering conta como caminho para tocar) */
+  tocando(): boolean;
   mudo(): boolean;
   definirMudo(v: boolean): void;
   destruir(): void;

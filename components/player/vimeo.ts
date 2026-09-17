@@ -64,11 +64,21 @@ export async function criarVimeo(o: OpcoesAdaptador): Promise<Adaptador> {
   await player.ready();
   await player.setCurrentTime(Math.max(0, o.inicioSec)).catch(() => 0);
 
-  player.on("play", () => o.aoComecarATocar());
-  player.on("ended", () => o.aoTerminar());
+  player.on("play", () => {
+    estaTocando = true;
+    o.aoComecarATocar();
+  });
+  player.on("pause", () => {
+    estaTocando = false;
+  });
+  player.on("ended", () => {
+    estaTocando = false;
+    o.aoTerminar();
+  });
 
   let ultimoTempo = Math.max(0, o.inicioSec);
   let estaMudo = false;
+  let estaTocando = false;
   player.on("timeupdate", (d) => {
     if (typeof d?.seconds === "number") ultimoTempo = d.seconds;
   });
@@ -82,6 +92,7 @@ export async function criarVimeo(o: OpcoesAdaptador): Promise<Adaptador> {
     pausar: () => void player.pause().catch(() => undefined),
     posicionar: (s) => void player.setCurrentTime(Math.max(0, s)).catch(() => undefined),
     tempoAtual: () => ultimoTempo,
+    tocando: () => estaTocando,
     mudo: () => estaMudo,
     definirMudo: (v) => {
       estaMudo = v;

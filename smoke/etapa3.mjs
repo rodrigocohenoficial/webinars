@@ -48,6 +48,14 @@ conferir(
 );
 conferir(Number(vars.controls) === 0, "sem barra de progresso (controls=0)");
 conferir(Number(vars.disablekb) === 1, "teclado desabilitado");
+conferir(Number(vars.cc_load_policy) === 0, "legendas não são forçadas");
+
+// o iframe não pode receber clique: é assim que o participante pausava
+const iframeClicavel = await page.evaluate(() => {
+  const el = document.querySelector("iframe[data-duble-youtube]");
+  return el ? getComputedStyle(el).pointerEvents : "sem iframe";
+});
+conferir(iframeClicavel === "none", `o iframe não recebe clique (pointer-events: ${iframeClicavel})`);
 
 // cortina cobrindo a marca do provedor (9.4)
 const cortinaNoInicio = await page.isVisible("text=entrando na sessao");
@@ -63,13 +71,24 @@ conferir(mudoAgora === true, "o player está de fato mudo nesse estado");
 await page.waitForSelector("text=entrando na sessao", { state: "hidden", timeout: 12000 });
 conferir(true, "9.4 cortina abre sozinha depois dos primeiros segundos");
 
+// ── legenda desligada de verdade, não só "não forçada" ──────────────────
+const descarregados = await page.evaluate(() => window.__espiao.modulosDescarregados);
+conferir(
+  descarregados.includes("captions") || descarregados.includes("cc"),
+  `com legenda desligada, o módulo de legenda é descarregado (${JSON.stringify(descarregados)})`,
+);
+
 // ─────────────────────────────────────────────────────────────────────────
 // 2. Armadilha 9.3: ativar o som NÃO pode dar seek
 // ─────────────────────────────────────────────────────────────────────────
 const seeksAntes = await page.evaluate(() => window.__espiao.seeks.length);
 await page.click("text=Toque para ouvir");
-await page.waitForTimeout(900);
+// Medido no gesto, não depois dele: a regra 9.3 é sobre o punho de
+// desmutar não dar seek. O vigia corrigir deriva mais tarde é o certo, e
+// com ele rodando a cada 700ms uma janela maior mediria as duas coisas.
+await page.waitForTimeout(150);
 const seeksDepois = await page.evaluate(() => window.__espiao.seeks.length);
+await page.waitForTimeout(900);
 const desmutou = await page.evaluate(() => window.__player.isMuted() === false);
 conferir(seeksDepois === seeksAntes, `9.3 nenhum seek no gesto de ativar o som (antes=${seeksAntes}, depois=${seeksDepois})`);
 conferir(desmutou, "9.3 o som foi ativado e o vídeo continuou tocando");
@@ -78,6 +97,16 @@ await page.waitForSelector("text=Toque para ouvir", { state: "hidden", timeout: 
 // ─────────────────────────────────────────────────────────────────────────
 // 3. Deriva: só ressincroniza quando passa de 3 segundos
 // ─────────────────────────────────────────────────────────────────────────
+// espera o vigia terminar de sincronizar: só a partir daí a tolerância de
+// 3s pode ser medida sem o atraso natural do início entrar na conta
+let estavel = -1;
+for (let i = 0; i < 12; i++) {
+  const agora = await page.evaluate(() => window.__espiao.seeks.length);
+  if (agora === estavel) break;
+  estavel = agora;
+  await page.waitForTimeout(2500);
+}
+
 await page.evaluate(() => window.__player.__atrasar(1.5));
 const seeksPre = await page.evaluate(() => window.__espiao.seeks.length);
 await page.waitForTimeout(5000);
@@ -95,6 +124,18 @@ if (seeksFinal.length > seeksPos) {
   const ultimo = seeksFinal[seeksFinal.length - 1].segundo;
   conferir(Math.abs(ultimo - (12 * 60 + 25)) < 60, `o seek foi para o ponto do relógio (${Math.round(ultimo)}s)`);
 }
+// ── a sessão não para: pausou, volta sozinha ───────────────────────────
+await page.evaluate(() => window.__player.__pausarPorFora());
+const pausouMesmo = await page.evaluate(() => window.__player.getPlayerState() !== 1);
+conferir(pausouMesmo, "o teste conseguiu pausar por fora");
+await page.waitForFunction(() => window.__player.getPlayerState() === 1, null, { timeout: 12000 });
+conferir(true, "pausado por fora, o vídeo volta a tocar sozinho — a sessão não para");
+const voltouNoPonto = await page.evaluate(() => window.__player.getCurrentTime());
+conferir(
+  Math.abs(voltouNoPonto - (12 * 60 + 60)) < 120,
+  `e volta no ponto do relógio, não onde parou (${Math.round(voltouNoPonto)}s)`,
+);
+
 await page.close();
 
 // ─────────────────────────────────────────────────────────────────────────
