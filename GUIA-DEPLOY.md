@@ -293,6 +293,30 @@ Teste: inscreva-se de novo com seu WhatsApp. A confirmação chega nos dois cana
 
 ## Quando algo der errado
 
+### Primeiro: abra `/api/saude` no seu site
+
+O sistema se diagnostica sozinho. Abra `https://seu-endereco/api/saude` e ele responde,
+em português, o que está faltando: se o banco responde, se as migrações rodaram, quais
+variáveis estão configuradas e se o endereço do site tem erro de digitação.
+
+Nenhum segredo aparece ali — só se cada variável está preenchida ou não.
+
+### Se o site inteiro devolve 404
+
+Não é a rota que está errada: **é que não existe nenhuma versão publicada.** Quando o
+build falha, a Vercel não publica nada, e o endereço devolve 404 em tudo — `/painel`,
+`/entrar`, `/api/cron`, tudo igual.
+
+Para confirmar: abra `https://seu-endereco/painel`. Se der 404 também, é isto.
+
+Onde ver o motivo: **Vercel → Deployments**. O deploy do topo vai estar vermelho, com
+**Error**. Clique nele e role até o fim do log — a última mensagem diz o que aconteceu.
+
+### Se o agendador devolve 404
+
+Mesma coisa acima: o site não está publicado. **401** é outro problema — aí o site
+existe e o segredo na URL é que está diferente do `CRON_SECRET` da Vercel.
+
 | O que você vê | O que é |
 |---|---|
 | O deploy falhou dizendo `Can't reach database server` | `DATABASE_URL` errada ou incompleta. Copie de novo do Neon. |
@@ -301,6 +325,9 @@ Teste: inscreva-se de novo com seu WhatsApp. A confirmação chega nos dois cana
 | Confirmação chega, lembrete não | O agendador não está rodando. Veja a parte 3. |
 | Nenhum e-mail chega | Domínio não verificado no Resend, ou faltou Redeploy. |
 | O agendador mostra 401 | O `secret=` da URL está diferente do `CRON_SECRET` da Vercel. |
+| O agendador devolve 404 | O site não está publicado. Veja acima. |
+| O agendador devolve 401 | O segredo na URL está diferente do `CRON_SECRET`. |
+| O agendador foi desativado sozinho | O cron-job.org desliga depois de muitas falhas seguidas. Resolva a causa e reative na conta dele. |
 | Mudei algo e nada mudou | Redeploy. É quase sempre isso. |
 
 ---

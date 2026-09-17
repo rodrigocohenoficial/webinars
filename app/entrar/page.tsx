@@ -1,39 +1,27 @@
-"use client";
+import { db } from "@/lib/db";
+import Formulario from "./Formulario";
 
-import { useActionState } from "react";
-import { entrar, type EstadoEntrar } from "./acoes";
+export const dynamic = "force-dynamic";
 
-const inicial: EstadoEntrar = {};
+/**
+ * Se o banco nao responde, a senha certa devolveria "senha incorreta" e
+ * ninguem descobriria o motivo. Entao a propria tela de entrada diz o que
+ * esta faltando, em portugues, antes de qualquer tentativa.
+ */
+export default async function Entrar() {
+  let aviso: string | null = null;
 
-export default function Entrar() {
-  const [estado, acao, pendente] = useActionState(entrar, inicial);
+  if (!process.env.ADMIN_PASSWORD) {
+    aviso =
+      "A variavel ADMIN_PASSWORD nao esta configurada na Vercel. Configure em Settings > Environment Variables e clique em Redeploy.";
+  } else {
+    try {
+      await db.$queryRaw`SELECT 1`;
+    } catch {
+      aviso =
+        "Nao consigo falar com o banco de dados. Confira a DATABASE_URL na Vercel, em Settings > Environment Variables, e clique em Redeploy.";
+    }
+  }
 
-  return (
-    <main className="flex min-h-dvh items-center justify-center p-6">
-      <form action={acao} className="cartao w-full max-w-sm">
-        <h1 className="text-lg font-semibold">Painel</h1>
-        <p className="ajuda mb-5">Um administrador, uma senha.</p>
-
-        <label className="rotulo" htmlFor="senha">
-          Senha
-        </label>
-        <input
-          id="senha"
-          name="senha"
-          type="password"
-          autoComplete="current-password"
-          autoFocus
-          className="campo"
-        />
-
-        {estado.erro ? (
-          <p className="mt-3 text-[13px] text-[var(--erro)]">{estado.erro}</p>
-        ) : null}
-
-        <button type="submit" className="botao mt-5 w-full" disabled={pendente}>
-          {pendente ? "Entrando..." : "Entrar"}
-        </button>
-      </form>
-    </main>
-  );
+  return <Formulario aviso={aviso} />;
 }

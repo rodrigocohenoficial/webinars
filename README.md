@@ -81,6 +81,17 @@ Já está no ar? Manual de operação, do deploy à primeira sessão com gente d
 
 Configuração · Roteiro · Enquetes · Curadoria · Sessões · Desempenho · Prévia
 
+## Diagnóstico
+
+`/api/saude` responde, em português, o que está faltando: conexão com o banco, migrações
+aplicadas, variáveis configuradas e erro de digitação no endereço do site. Nenhum valor de
+segredo aparece — só se está preenchido.
+
+As migrações rodam no build mas **não derrubam o build** (`scripts/migrar.mjs`): um
+`DATABASE_URL` errado deixaria o projeto sem nenhuma versão publicada, e aí o domínio
+devolve 404 em todas as páginas — um sintoma que não aponta para a causa. Assim o site
+sobe e diz na própria tela o que faltou.
+
 ## Testes
 
 ```bash

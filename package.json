@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "prisma migrate deploy && next build --turbopack",
+    "build": "node scripts/migrar.mjs && next build --turbopack",
     "start": "next start",
     "lint": "eslint",
     "smoke": "node smoke/todos.mjs",
