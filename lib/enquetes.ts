@@ -5,13 +5,16 @@ export type EnqueteDaSala = {
   pergunta: string;
   atSec: number;
   untilSec: number | null;
-  total: number;
   meuVoto: string | null;
-  opcoes: { id: string; label: string; votos: number }[];
+  opcoes: { id: string; label: string }[];
 };
 
 /**
- * Todas as enquetes do webinario, com a apuracao de agora.
+ * Todas as enquetes do webinario — sem apuracao.
+ *
+ * A sala nao mostra resultado nem total, entao o numero nem sai daqui: o
+ * navegador do participante nao recebe uma contagem que ele nao veria. Quem
+ * ve a apuracao e voce, no painel.
  *
  * Elas viajam com a pagina, como a trilha do chat: a janela de cada uma e
  * deterministica (comeca no segundo X, sai no Y), entao o cliente sabe
@@ -24,10 +27,7 @@ export async function enquetesDoWebinario(webinarId: string): Promise<EnqueteDaS
   const enquetes = await db.poll.findMany({
     where: { webinarId },
     orderBy: { atSec: "asc" },
-    include: {
-      options: { orderBy: { order: "asc" }, include: { _count: { select: { votes: true } } } },
-      _count: { select: { votes: true } },
-    },
+    include: { options: { orderBy: { order: "asc" }, select: { id: true, label: true } } },
   });
 
   return enquetes.map((e) => ({
@@ -35,9 +35,8 @@ export async function enquetesDoWebinario(webinarId: string): Promise<EnqueteDaS
     pergunta: e.question,
     atSec: e.atSec,
     untilSec: e.untilSec,
-    total: e._count.votes,
     meuVoto: null,
-    opcoes: e.options.map((o) => ({ id: o.id, label: o.label, votos: o._count.votes })),
+    opcoes: e.options.map((o) => ({ id: o.id, label: o.label })),
   }));
 }
 

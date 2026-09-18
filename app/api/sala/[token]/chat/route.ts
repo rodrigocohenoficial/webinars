@@ -71,13 +71,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
       OR: [{ untilSec: null }, { untilSec: { gt: posicao } }],
     },
     orderBy: { atSec: "desc" },
-    include: {
-      options: {
-        orderBy: { order: "asc" },
-        include: { _count: { select: { votes: true } } },
-      },
-      _count: { select: { votes: true } },
-    },
+    include: { options: { orderBy: { order: "asc" }, select: { id: true, label: true } } },
   });
 
   const meuVoto = enqueteAtiva
@@ -89,17 +83,15 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
       })
     : null;
 
+  // Sem apuracao: a sala nao mostra resultado nem total. O unico dado que
+  // volta daqui e em que opcao esta pessoa votou, para a escolha dela ficar
+  // marcada.
   const enquete = enqueteAtiva
     ? {
         id: enqueteAtiva.id,
         pergunta: enqueteAtiva.question,
-        total: enqueteAtiva._count.votes,
         meuVoto: meuVoto?.optionId ?? null,
-        opcoes: enqueteAtiva.options.map((o) => ({
-          id: o.id,
-          label: o.label,
-          votos: o._count.votes,
-        })),
+        opcoes: enqueteAtiva.options.map((o) => ({ id: o.id, label: o.label })),
       }
     : null;
 

@@ -183,7 +183,6 @@ export default function Chat({
         ? {
             id: daJanela.id,
             pergunta: daJanela.pergunta,
-            total: daJanela.total,
             meuVoto: daJanela.meuVoto,
             opcoes: daJanela.opcoes,
           }
@@ -280,16 +279,8 @@ export default function Chat({
           token={token}
           enquete={enquete}
           aoVotar={(optionId) =>
-            // O voto ja foi confirmado pelo servidor; aqui so marcamos na
-            // tela. A apuracao exata chega na proxima consulta.
-            setEnqueteAoVivo({
-              ...enquete,
-              meuVoto: optionId,
-              total: enquete.meuVoto === null ? enquete.total + 1 : enquete.total,
-              opcoes: enquete.opcoes.map((o) =>
-                o.id === optionId && enquete.meuVoto === null ? { ...o, votos: o.votos + 1 } : o,
-              ),
-            })
+            // O servidor ja confirmou; aqui so marcamos a escolha na tela.
+            setEnqueteAoVivo({ ...enquete, meuVoto: optionId })
           }
         />
       ) : null}

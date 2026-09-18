@@ -151,16 +151,12 @@ conferir(
   !(await previa.isVisible("text=Voce ja opera com robo hoje?")),
   "antes do minuto dela, não aparece nem na prévia",
 );
-// ── apuração some quando o número é pequeno demais ─────────────────────
-const poucos = await sala("enq-a");
-await poucos.waitForSelector("text=Voce ja opera com robo hoje?", { timeout: 25000 });
-await poucos.waitForTimeout(1500);
-const textoPoucos = await poucos.innerText("aside");
-conferir(!/100%/.test(textoPoucos), "com 1 voto, a apuração não aparece");
-conferir(/Anotado/.test(textoPoucos), "mas o voto está lá, marcado");
-await poucos.close();
-
-for (let i = 0; i < 6; i++) {
+// ── a sala nunca mostra apuração nem total ─────────────────────────────
+//
+// O voto conta e a escolha fica marcada, mas número nenhum aparece para o
+// participante — nem com um voto, nem com muitos. Quem vê a apuração é o
+// painel. Assim não existe a pergunta de inflar contagem.
+for (let i = 0; i < 8; i++) {
   const r = await db.registration.create({
     data: {
       sessionId: s.sessaoId, name: `Votante ${i}`, email: `v${i}@t.com`,
@@ -171,12 +167,30 @@ for (let i = 0; i < 6; i++) {
     data: { pollId: noAr.id, optionId: noAr.options[i % 3].id, registrationId: r.id, sessionId: s.sessaoId },
   });
 }
-const muitos = await sala("enq-a");
-await muitos.waitForSelector("text=Voce ja opera com robo hoje?", { timeout: 25000 });
-await muitos.waitForTimeout(2000);
-const textoMuitos = await muitos.innerText("aside");
-conferir(/%/.test(textoMuitos), `com votos suficientes, a apuração aparece`);
-await muitos.close();
+
+const comVotos = await sala("enq-a");
+await comVotos.waitForSelector("text=Voce ja opera com robo hoje?", { timeout: 25000 });
+await comVotos.waitForTimeout(2000);
+const textoSala = await comVotos.innerText("aside");
+conferir(!/%/.test(textoSala), "com 9 votos, a sala continua sem mostrar porcentagem");
+conferir(!/\d+ votos?/.test(textoSala), "nem o total de votos");
+conferir(/sua resposta/.test(textoSala), "mas a escolha de quem votou fica marcada");
+
+// o número não chega nem ao navegador
+const respostaSala = await fetch(`${BASE}/api/sala/enq-a/chat`).then((r) => r.json());
+const enqueteNaResposta = JSON.stringify(respostaSala.enquete ?? {});
+conferir(
+  !/votos|total/.test(enqueteNaResposta),
+  `a contagem nem viaja para o navegador (${enqueteNaResposta.slice(0, 90)})`,
+);
+await comVotos.close();
+
+// mas o painel continua vendo tudo
+await painel.goto(`${BASE}/painel/w/${s.webinarId}/enquetes`);
+await painel.waitForSelector("#lista-enquetes > li", { timeout: 20000 });
+const noPainel = await painel.innerText("#lista-enquetes");
+conferir(/\d+ votos/.test(noPainel), "o painel continua mostrando a apuração completa");
+conferir(/%/.test(noPainel), "com as barras em porcentagem");
 
 await a.close(); await painel.close();
 await browser.close();

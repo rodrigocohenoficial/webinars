@@ -5,21 +5,9 @@ import { useState } from "react";
 export type EnqueteAtiva = {
   id: string;
   pergunta: string;
-  total: number;
   meuVoto: string | null;
-  opcoes: { id: string; label: string; votos: number }[];
+  opcoes: { id: string; label: string }[];
 };
-
-/**
- * Quantos votos a enquete precisa ter para a apuracao aparecer.
- *
- * "1 voto · 100%" numa sala com cinquenta pessoas nao parece cheio, parece
- * quebrado — e a saida nao e inventar voto. Abaixo disso a enquete continua
- * funcionando: as opcoes estao la, o voto e gravado, a escolha de quem votou
- * fica marcada. So o numero nao aparece, porque um numero pequeno demais
- * informa menos do que atrapalha.
- */
-const VOTOS_PARA_MOSTRAR_APURACAO = 5;
 
 /**
  * A enquete ativa fica fixada no alto do chat, fora da esteira de
@@ -36,7 +24,6 @@ export default function Enquete({
 }) {
   const [enviando, setEnviando] = useState<string | null>(null);
   const jaVotou = enquete.meuVoto !== null;
-  const mostrarApuracao = enquete.total >= VOTOS_PARA_MOSTRAR_APURACAO;
 
   async function votar(optionId: string) {
     if (enviando) return;
@@ -62,7 +49,6 @@ export default function Enquete({
 
       <ul className="mt-2.5 space-y-1.5">
         {enquete.opcoes.map((o) => {
-          const pct = enquete.total === 0 ? 0 : (o.votos / enquete.total) * 100;
           const minha = enquete.meuVoto === o.id;
           return (
             <li key={o.id}>
@@ -70,29 +56,18 @@ export default function Enquete({
                 type="button"
                 onClick={() => votar(o.id)}
                 disabled={enviando !== null}
-                className={`relative w-full overflow-hidden rounded-lg border px-3 py-2 text-left text-[13px] transition ${
+                className={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-[13px] transition ${
                   minha
-                    ? "border-[var(--acento)] text-[var(--texto)]"
+                    ? "border-[var(--acento)] bg-[var(--acento-fraco)] text-[var(--texto)]"
                     : "border-[var(--borda)] text-[var(--texto-2)] hover:border-[var(--texto-3)]"
                 }`}
               >
-                {jaVotou && mostrarApuracao ? (
-                  <span
-                    className="absolute inset-y-0 left-0 bg-[var(--acento)]/15"
-                    style={{ width: `${pct}%` }}
-                  />
+                <span>{o.label}</span>
+                {minha ? (
+                  <span className="shrink-0 text-[12px] font-medium text-[var(--acento)]">
+                    sua resposta
+                  </span>
                 ) : null}
-                <span className="relative flex items-center justify-between gap-2">
-                  <span>{o.label}</span>
-                  {jaVotou && mostrarApuracao ? (
-                    <span className="tabular-nums text-[12px] text-[var(--texto-3)]">
-                      {pct.toFixed(0)}%
-                    </span>
-                  ) : null}
-                  {minha && !mostrarApuracao ? (
-                    <span className="text-[12px] text-[var(--acento)]">sua resposta</span>
-                  ) : null}
-                </span>
               </button>
             </li>
           );
@@ -100,11 +75,7 @@ export default function Enquete({
       </ul>
 
       <p className="ajuda mt-2">
-        {!jaVotou
-          ? "Escolha uma"
-          : mostrarApuracao
-            ? `${enquete.total} votos · pode trocar`
-            : "Anotado. Pode trocar se quiser."}
+        {jaVotou ? "Anotado. Pode trocar se quiser." : "Escolha uma"}
       </p>
     </div>
   );
