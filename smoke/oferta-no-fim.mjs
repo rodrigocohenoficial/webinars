@@ -17,7 +17,7 @@ const semear = (args) =>
 // sessão de 48min que começou há 60min: acabou, e a oferta saía aos 20:00
 const s = semear([
   "--minutos", "60", "--token", "fim-cta", "--slug", "fim-cta-teste", "--limpar",
-  "--oferta-em", "300", "--oferta-ate", "1200",
+  "--oferta-em", "300", "--oferta-ate", "1200", "--com-regra",
 ]);
 
 const browser = await chromium.launch(process.env.PW_CHROME ? { executablePath: process.env.PW_CHROME } : {});
@@ -32,6 +32,17 @@ async function abrir(token) {
 let page = await abrir("fim-cta");
 await page.waitForSelector("text=foi encerrada", { timeout: 25000 });
 conferir(await page.isVisible("text=Quero minha vaga"), "a oferta reaparece na tela de encerramento");
+
+/**
+ * Espera a página ser assumida pelo React antes de clicar.
+ *
+ * Os próximos horários são buscados pelo cliente, então eles só existem
+ * depois da hidratação. Sem esta espera, o clique na oferta acontece na
+ * página ainda estática: o <a> navega, o onClick nunca roda e o clique não é
+ * gravado. Passa sozinho e falha na bateria inteira, quando o servidor está
+ * ocupado — que é exatamente o que aconteceu.
+ */
+await page.waitForSelector("button:has-text('reservar')", { timeout: 25000 });
 conferir(
   await page.isVisible("text=As vagas desta turma abrem agora"),
   "com a mesma chamada da oferta",
@@ -53,9 +64,10 @@ await db.webinar.update({ where: { id: s.webinarId }, data: { ctaNoFim: false } 
 semear(["--minutos", "60", "--token", "fim-cta-off", "--slug", "fim-cta-teste"]);
 page = await abrir("fim-cta-off");
 await page.waitForSelector("text=foi encerrada", { timeout: 25000 });
-await page.waitForTimeout(1200);
+await page.waitForSelector("button:has-text('reservar')", { timeout: 25000 });
 conferir(!(await page.isVisible("text=Quero minha vaga")), "desligado no painel, a oferta não reaparece no fim");
-conferir(await page.isVisible("text=Proximos horarios") || true, "e os próximos horários continuam ali");
+const quantosHorarios = await page.locator("button:has-text('reservar')").count();
+conferir(quantosHorarios > 0, `e os próximos horários continuam ali (${quantosHorarios})`);
 await page.close();
 
 // ── a janela do minuto continua valendo durante a sessão ────────────────
@@ -63,7 +75,7 @@ await db.webinar.update({ where: { id: s.webinarId }, data: { ctaNoFim: true } }
 semear(["--minutos", "1", "--token", "fim-cta-cedo", "--slug", "fim-cta-teste"]);
 page = await abrir("fim-cta-cedo");
 await page.waitForSelector("text=Conversa", { timeout: 25000 });
-await page.waitForTimeout(1500);
+await page.waitForTimeout(2000);
 conferir(
   !(await page.isVisible("text=Quero minha vaga")),
   "ligar a repetição no fim não faz a oferta aparecer antes do minuto dela",
