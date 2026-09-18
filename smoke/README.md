@@ -40,6 +40,12 @@ O que cada um prova:
 
 | `reacoes.mjs` | os quatro símbolos e só eles · 5.2 no segundo da reação · sobe e some sozinha · reação de uma sessão reaparece no minuto dela na seguinte · quem entra no meio não leva o histórico na cara |
 
+| `celular.mjs` | em 390px e 360px: a página não desliza de lado, o título não encosta na borda, a barra de reações fica abaixo do vídeo, o campo de escrever cabe |
+
+`celular.mjs` roda em Chromium e **não reproduz** o defeito do Safari do iPhone que motivou ele —
+conferimos, e ele passa com e sem a correção. O que ele pega é conta errada de largura e
+elementos espremidos. Comportamento de iPhone só se vê em iPhone.
+
 `etapa9.mjs` não manda e-mail de verdade: sobe um servidor local fazendo o papel do Resend e da
 Z-API (`RESEND_API_URL` e `ZAPI_BASE_URL` apontam para ele) e confere as regras, que é o que
 pode quebrar.

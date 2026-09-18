@@ -263,7 +263,7 @@ function Tela({
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1400px] px-4 py-5">
+    <main className="mx-auto w-full max-w-[1400px] overflow-x-hidden px-4 py-5">
       <header className="mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div className="min-w-0">
           <h1 className="truncate text-xl font-semibold leading-tight tracking-tight sm:text-2xl">

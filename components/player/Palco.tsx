@@ -293,7 +293,10 @@ export default function Palco({
 
   return (
     <div
-      className="relative w-full overflow-hidden rounded-xl bg-black"
+      // overflow-clip alem de hidden: no Safari do iPhone, hidden nao impede
+      // a pagina de deslizar de lado quando um filho passa da borda — e o
+      // player passa, de proposito, para esconder a marca do provedor.
+      className="relative w-full overflow-hidden overflow-clip rounded-xl bg-black"
       style={{ aspectRatio: aspectRatio === "9/16" ? "9 / 16" : "16 / 9" }}
     >
       {/*
@@ -303,7 +306,7 @@ export default function Palco({
         "mais videos" e logo. Sem evento de ponteiro, o provedor nunca fica
         sabendo do clique.
       */}
-      <div ref={caixaRef} className="absolute inset-0 overflow-hidden">
+      <div ref={caixaRef} className="absolute inset-0 overflow-hidden overflow-clip">
         <div
           ref={molduraRef}
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 [&_iframe]:pointer-events-none [&_iframe]:h-full [&_iframe]:w-full"

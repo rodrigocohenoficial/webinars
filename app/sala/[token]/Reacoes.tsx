@@ -116,14 +116,20 @@ export default function Reacoes({
         ))}
       </div>
 
-      <div className="absolute bottom-3 right-3 z-30 flex gap-0.5 rounded-full bg-black/45 p-1 backdrop-blur">
+      {/*
+        No celular a barra fica embaixo do video, nao por cima: a tela ja e
+        apertada e cobrir o rosto de quem fala com quatro emojis e pior do
+        que gastar uma linha. No desktop sobra espaco, entao ela flutua no
+        canto.
+      */}
+      <div className="mt-2 flex justify-end gap-0.5 lg:absolute lg:bottom-3 lg:right-3 lg:z-30 lg:mt-0 lg:rounded-full lg:bg-black/45 lg:p-1 lg:backdrop-blur">
         {REACOES.map((emoji) => (
           <button
             key={emoji}
             type="button"
             onClick={() => reagir(emoji)}
             aria-label={`reagir com ${emoji}`}
-            className="rounded-full px-2 py-1 text-[17px] leading-none transition hover:scale-125 active:scale-95"
+            className="rounded-full border border-[var(--borda)] px-3 py-1.5 text-[16px] leading-none transition active:scale-90 lg:border-transparent lg:px-2 lg:py-1 lg:hover:scale-125"
           >
             {emoji}
           </button>

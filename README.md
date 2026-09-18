@@ -97,7 +97,7 @@ sobe e diz na própria tela o que faltou.
 ```bash
 npm i -D playwright
 npm run dev          # em outro terminal
-npm run smoke        # 15 suítes, ~160 afirmações
+npm run smoke        # 16 suítes, ~170 afirmações
 ```
 
 Detalhes e o que cada suíte prova: [`smoke/README.md`](smoke/README.md).
