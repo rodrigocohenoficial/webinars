@@ -132,6 +132,52 @@ const tentativaHost = await fetch(`${BASE}/api/sala/enq-host/voto`, {
 });
 conferir(tentativaHost.status === 403, `9.11 o apresentador não vota na própria enquete (${tentativaHost.status})`);
 
+// ── a enquete aparece na pré-visualização, que não consulta nada ───────
+// a prévia fica atrás do login: usamos a própria aba do painel
+const previa = painel;
+await previa.route("**/iframe_api*", (r) => r.fulfill({ contentType: "text/javascript", body: DUBLE }));
+const chamadasPrevia = [];
+previa.on("request", (r) => { if (/\/api\/sala\//.test(r.url())) chamadasPrevia.push(r.url()); });
+
+await previa.goto(`${BASE}/painel/w/${s.webinarId}/previa?em=360`);
+await previa.waitForSelector("text=Voce ja opera com robo hoje?", { timeout: 25000 });
+conferir(true, "a enquete aparece na pré-visualização, no minuto dela");
+conferir(chamadasPrevia.length === 0, `e sem consultar rota nenhuma (${chamadasPrevia.length})`);
+
+await previa.goto(`${BASE}/painel/w/${s.webinarId}/previa?em=60`);
+await previa.waitForSelector("text=Conversa", { timeout: 25000 });
+await previa.waitForTimeout(1500);
+conferir(
+  !(await previa.isVisible("text=Voce ja opera com robo hoje?")),
+  "antes do minuto dela, não aparece nem na prévia",
+);
+// ── apuração some quando o número é pequeno demais ─────────────────────
+const poucos = await sala("enq-a");
+await poucos.waitForSelector("text=Voce ja opera com robo hoje?", { timeout: 25000 });
+await poucos.waitForTimeout(1500);
+const textoPoucos = await poucos.innerText("aside");
+conferir(!/100%/.test(textoPoucos), "com 1 voto, a apuração não aparece");
+conferir(/Anotado/.test(textoPoucos), "mas o voto está lá, marcado");
+await poucos.close();
+
+for (let i = 0; i < 6; i++) {
+  const r = await db.registration.create({
+    data: {
+      sessionId: s.sessaoId, name: `Votante ${i}`, email: `v${i}@t.com`,
+      token: `enq-v${i}-${Date.now()}`,
+    },
+  });
+  await db.pollVote.create({
+    data: { pollId: noAr.id, optionId: noAr.options[i % 3].id, registrationId: r.id, sessionId: s.sessaoId },
+  });
+}
+const muitos = await sala("enq-a");
+await muitos.waitForSelector("text=Voce ja opera com robo hoje?", { timeout: 25000 });
+await muitos.waitForTimeout(2000);
+const textoMuitos = await muitos.innerText("aside");
+conferir(/%/.test(textoMuitos), `com votos suficientes, a apuração aparece`);
+await muitos.close();
+
 await a.close(); await painel.close();
 await browser.close();
 await db.$disconnect();

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Enquete, { type EnqueteAtiva } from "./Enquete";
+import { enqueteNoAr, type EnqueteDaSala } from "@/lib/enquetes";
 
 export type Mensagem = {
   id: string;
@@ -101,6 +102,7 @@ export default function Chat({
   ehApresentador = false,
   somenteLeitura = false,
   aoSaberAudiencia,
+  enquetes = [],
 }: {
   token: string;
   trilha: Mensagem[];
@@ -113,9 +115,11 @@ export default function Chat({
   somenteLeitura?: boolean;
   /** o contador viaja nesta mesma consulta; quem mostra e o cabecalho */
   aoSaberAudiencia?: (quantos: number | null) => void;
+  /** todas as enquetes, com a janela de cada uma: viajam com a pagina */
+  enquetes?: EnqueteDaSala[];
 }) {
   const [daSessao, setDaSessao] = useState<Mensagem[]>([]);
-  const [enquete, setEnquete] = useState<EnqueteAtiva | null>(null);
+  const [enqueteAoVivo, setEnqueteAoVivo] = useState<EnqueteAtiva | null>(null);
   const [locais, setLocais] = useState<Mensagem[]>([]);
   const [rascunho, setRascunho] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -145,7 +149,7 @@ export default function Chat({
         if (!vivo) return;
         if (d.mensagens) setDaSessao(d.mensagens);
         // Enquete, oferta e contador viajam junto do chat: sem endpoint proprio.
-        setEnquete(d.enquete ?? null);
+        setEnqueteAoVivo(d.enquete ?? null);
         aoSaberAudiencia?.(d.assistindo ?? null);
       } catch {
         // uma consulta perdida nao quebra nada: a proxima vem em 6 segundos
@@ -163,6 +167,27 @@ export default function Chat({
 
   const todas = useMemo(() => unir(trilha, daSessao, locais, extras), [trilha, daSessao, locais, extras]);
   const posicao = posicaoAlvo();
+
+  /**
+   * Qual enquete esta no ar o cliente decide sozinho, pela janela que veio
+   * com a pagina. A resposta da consulta so substitui quando e da mesma
+   * enquete, porque ela traz o voto de quem esta assistindo e a apuracao
+   * fresca. Assim a pre-visualizacao, que nao consulta nada, mostra a
+   * enquete no minuto certo igual a sala de verdade.
+   */
+  const daJanela = enqueteNoAr(enquetes, posicao);
+  const enquete: EnqueteAtiva | null =
+    enqueteAoVivo && (!daJanela || enqueteAoVivo.id === daJanela.id)
+      ? enqueteAoVivo
+      : daJanela
+        ? {
+            id: daJanela.id,
+            pergunta: daJanela.pergunta,
+            total: daJanela.total,
+            meuVoto: daJanela.meuVoto,
+            opcoes: daJanela.opcoes,
+          }
+        : null;
   const visiveis = useMemo(() => todas.filter((m) => m.sec <= posicao), [todas, posicao]);
 
   const esteiraRef = useRef<HTMLUListElement | null>(null);
@@ -255,17 +280,16 @@ export default function Chat({
           token={token}
           enquete={enquete}
           aoVotar={(optionId) =>
-            setEnquete((atual) =>
-              atual
-                ? {
-                    ...atual,
-                    meuVoto: optionId,
-                    // a contagem exata vem na proxima consulta; aqui so
-                    // marcamos o proprio voto, que o servidor ja confirmou
-                    total: atual.meuVoto === null ? atual.total + 1 : atual.total,
-                  }
-                : atual,
-            )
+            // O voto ja foi confirmado pelo servidor; aqui so marcamos na
+            // tela. A apuracao exata chega na proxima consulta.
+            setEnqueteAoVivo({
+              ...enquete,
+              meuVoto: optionId,
+              total: enquete.meuVoto === null ? enquete.total + 1 : enquete.total,
+              opcoes: enquete.opcoes.map((o) =>
+                o.id === optionId && enquete.meuVoto === null ? { ...o, votos: o.votos + 1 } : o,
+              ),
+            })
           }
         />
       ) : null}

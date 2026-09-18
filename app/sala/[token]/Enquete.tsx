@@ -11,6 +11,17 @@ export type EnqueteAtiva = {
 };
 
 /**
+ * Quantos votos a enquete precisa ter para a apuracao aparecer.
+ *
+ * "1 voto · 100%" numa sala com cinquenta pessoas nao parece cheio, parece
+ * quebrado — e a saida nao e inventar voto. Abaixo disso a enquete continua
+ * funcionando: as opcoes estao la, o voto e gravado, a escolha de quem votou
+ * fica marcada. So o numero nao aparece, porque um numero pequeno demais
+ * informa menos do que atrapalha.
+ */
+const VOTOS_PARA_MOSTRAR_APURACAO = 5;
+
+/**
  * A enquete ativa fica fixada no alto do chat, fora da esteira de
  * comentarios — senao ela sobe junto com a conversa e some.
  */
@@ -25,6 +36,7 @@ export default function Enquete({
 }) {
   const [enviando, setEnviando] = useState<string | null>(null);
   const jaVotou = enquete.meuVoto !== null;
+  const mostrarApuracao = enquete.total >= VOTOS_PARA_MOSTRAR_APURACAO;
 
   async function votar(optionId: string) {
     if (enviando) return;
@@ -64,7 +76,7 @@ export default function Enquete({
                     : "border-[var(--borda)] text-[var(--texto-2)] hover:border-[var(--texto-3)]"
                 }`}
               >
-                {jaVotou ? (
+                {jaVotou && mostrarApuracao ? (
                   <span
                     className="absolute inset-y-0 left-0 bg-[var(--acento)]/15"
                     style={{ width: `${pct}%` }}
@@ -72,10 +84,13 @@ export default function Enquete({
                 ) : null}
                 <span className="relative flex items-center justify-between gap-2">
                   <span>{o.label}</span>
-                  {jaVotou ? (
+                  {jaVotou && mostrarApuracao ? (
                     <span className="tabular-nums text-[12px] text-[var(--texto-3)]">
                       {pct.toFixed(0)}%
                     </span>
+                  ) : null}
+                  {minha && !mostrarApuracao ? (
+                    <span className="text-[12px] text-[var(--acento)]">sua resposta</span>
                   ) : null}
                 </span>
               </button>
@@ -85,9 +100,11 @@ export default function Enquete({
       </ul>
 
       <p className="ajuda mt-2">
-        {jaVotou
-          ? `${enquete.total} ${enquete.total === 1 ? "voto" : "votos"} · pode trocar`
-          : "Escolha uma"}
+        {!jaVotou
+          ? "Escolha uma"
+          : mostrarApuracao
+            ? `${enquete.total} votos · pode trocar`
+            : "Anotado. Pode trocar se quiser."}
       </p>
     </div>
   );

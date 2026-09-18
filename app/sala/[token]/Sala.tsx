@@ -11,6 +11,7 @@ import ProximosHorarios from "./ProximosHorarios";
 import Chat, { type Mensagem } from "./Chat";
 import Oferta, { type OfertaConfig } from "./Oferta";
 import Audiencia from "./Audiencia";
+import type { EnqueteDaSala } from "@/lib/enquetes";
 
 export type DadosSala = {
   token: string;
@@ -31,6 +32,8 @@ export type DadosSala = {
   oferta: OfertaConfig | null;
   /** repetir a oferta na tela de encerramento */
   ofertaNoFim: boolean;
+  /** todas as enquetes, com a janela de cada uma */
+  enquetes: EnqueteDaSala[];
   /** voce entrando na propria sala: mesma tela, com duas coisas a mais */
   ehApresentador: boolean;
   /**
@@ -301,6 +304,7 @@ function Tela({
               somenteLeitura={dados.previa}
               ehApresentador={dados.ehApresentador}
               aoSaberAudiencia={aoSaberAudiencia}
+              enquetes={dados.enquetes}
               cabecalho={dados.ehApresentador ? <Audiencia token={dados.token} /> : undefined}
             />
           </div>

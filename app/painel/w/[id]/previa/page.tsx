@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { enquetesDoWebinario } from "@/lib/enquetes";
 import { parseVideoUrl } from "@/lib/video";
 import { formatMinutoSegundo } from "@/lib/time";
 import Sala, { type DadosSala } from "../../../../sala/[token]/Sala";
@@ -46,6 +47,8 @@ export default async function Previa({
     select: { id: true, authorName: true, body: true, videoTimeSec: true, kind: true },
   });
 
+  const enquetes = await enquetesDoWebinario(w.id);
+
   const dados: DadosSala = {
     token: "previa",
     titulo: w.title,
@@ -82,6 +85,7 @@ export default async function Previa({
     ofertaNoFim: w.ctaNoFim,
     ehApresentador: false,
     previa: true,
+    enquetes,
   };
 
   const fim = w.durationSec ? w.durationSec - 20 : null;
