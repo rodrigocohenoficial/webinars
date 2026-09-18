@@ -12,6 +12,8 @@ import Chat, { type Mensagem } from "./Chat";
 import Oferta, { type OfertaConfig } from "./Oferta";
 import Audiencia from "./Audiencia";
 import type { EnqueteDaSala } from "@/lib/enquetes";
+import type { ReacaoNaSala } from "@/lib/reacoes";
+import Reacoes from "./Reacoes";
 
 export type DadosSala = {
   token: string;
@@ -34,6 +36,8 @@ export type DadosSala = {
   ofertaNoFim: boolean;
   /** todas as enquetes, com a janela de cada uma */
   enquetes: EnqueteDaSala[];
+  /** reacoes de sessoes anteriores, presas ao segundo do video */
+  reacoes: ReacaoNaSala[];
   /** voce entrando na propria sala: mesma tela, com duas coisas a mais */
   ehApresentador: boolean;
   /**
@@ -70,6 +74,7 @@ export default function Sala({ dados }: { dados: DadosSala }) {
   const jaEntrouRef = useRef(false);
   const [tique, redesenhar] = useState(0);
   const [assistindo, setAssistindo] = useState<number | null>(null);
+  const [reacoesDaSessao, setReacoesDaSessao] = useState<ReacaoNaSala[]>([]);
 
   useEffect(() => {
     const t = setInterval(() => redesenhar((n) => n + 1), 500);
@@ -107,6 +112,8 @@ export default function Sala({ dados }: { dados: DadosSala }) {
       aoTerminar={aoTerminar}
       assistindo={assistindo}
       aoSaberAudiencia={setAssistindo}
+      reacoesDaSessao={reacoesDaSessao}
+      aoSaberReacoes={setReacoesDaSessao}
     />
   );
 }
@@ -163,6 +170,8 @@ function Tela({
   aoTerminar,
   assistindo,
   aoSaberAudiencia,
+  reacoesDaSessao,
+  aoSaberReacoes,
 }: {
   fase: Fase;
   faltamSec: number;
@@ -171,6 +180,8 @@ function Tela({
   aoTerminar: () => void;
   assistindo: number | null;
   aoSaberAudiencia: (quantos: number | null) => void;
+  reacoesDaSessao: ReacaoNaSala[];
+  aoSaberReacoes: (lista: ReacaoNaSala[]) => void;
 }) {
   // Regra 5.6: nenhuma destas telas diz video, gravacao ou replay.
   if (fase === "SEM_VIDEO") {
@@ -270,14 +281,23 @@ function Tela({
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div>
           {dados.video ? (
-            <Palco
-              video={dados.video}
-              aspectRatio={dados.aspectRatio}
-              legendas={dados.legendas}
-              posicaoAlvo={posicaoAlvo}
-              capaUrl={dados.capaUrl}
-              aoTerminar={aoTerminar}
-            />
+            <div className="relative">
+              <Palco
+                video={dados.video}
+                aspectRatio={dados.aspectRatio}
+                legendas={dados.legendas}
+                posicaoAlvo={posicaoAlvo}
+                capaUrl={dados.capaUrl}
+                aoTerminar={aoTerminar}
+              />
+              <Reacoes
+                token={dados.token}
+                trilha={dados.reacoes}
+                daSessao={reacoesDaSessao}
+                posicaoAlvo={posicaoAlvo}
+                previa={dados.previa}
+              />
+            </div>
           ) : null}
           {dados.oferta ? (
             <Oferta
@@ -304,6 +324,7 @@ function Tela({
               somenteLeitura={dados.previa}
               ehApresentador={dados.ehApresentador}
               aoSaberAudiencia={aoSaberAudiencia}
+              aoSaberReacoes={aoSaberReacoes}
               enquetes={dados.enquetes}
               cabecalho={dados.ehApresentador ? <Audiencia token={dados.token} /> : undefined}
             />

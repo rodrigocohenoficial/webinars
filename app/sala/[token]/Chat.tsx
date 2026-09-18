@@ -102,6 +102,7 @@ export default function Chat({
   ehApresentador = false,
   somenteLeitura = false,
   aoSaberAudiencia,
+  aoSaberReacoes,
   enquetes = [],
 }: {
   token: string;
@@ -115,6 +116,8 @@ export default function Chat({
   somenteLeitura?: boolean;
   /** o contador viaja nesta mesma consulta; quem mostra e o cabecalho */
   aoSaberAudiencia?: (quantos: number | null) => void;
+  /** as reacoes desta sessao viajam na mesma consulta */
+  aoSaberReacoes?: (lista: { id: string; emoji: string; sec: number }[]) => void;
   /** todas as enquetes, com a janela de cada uma: viajam com a pagina */
   enquetes?: EnqueteDaSala[];
 }) {
@@ -145,12 +148,14 @@ export default function Chat({
           mensagens?: Mensagem[];
           enquete?: EnqueteAtiva | null;
           assistindo?: number | null;
+          reacoes?: { id: string; emoji: string; sec: number }[];
         };
         if (!vivo) return;
         if (d.mensagens) setDaSessao(d.mensagens);
         // Enquete, oferta e contador viajam junto do chat: sem endpoint proprio.
         setEnqueteAoVivo(d.enquete ?? null);
         aoSaberAudiencia?.(d.assistindo ?? null);
+        if (d.reacoes) aoSaberReacoes?.(d.reacoes);
       } catch {
         // uma consulta perdida nao quebra nada: a proxima vem em 6 segundos
       }
@@ -276,6 +281,7 @@ export default function Chat({
 
       {enquete ? (
         <Enquete
+          key={enquete.id}
           token={token}
           enquete={enquete}
           aoVotar={(optionId) =>

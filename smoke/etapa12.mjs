@@ -74,18 +74,36 @@ conferir(
 const dentroDaEsteira = await a.locator("aside ul li:has-text('Voce ja opera')").count();
 conferir(dentroDaEsteira === 0, "a enquete fica fixada no alto, fora da esteira de comentários");
 
-// ── votar ───────────────────────────────────────────────────────────────
+// ── votar, e a enquete sai da frente ────────────────────────────────────
 await a.click("button:has-text('Estou testando')");
-await a.waitForSelector("text=pode trocar", { timeout: 15000 });
-let voto = await db.pollVote.findFirst({ where: { pollId: noAr.id }, include: { option: true } });
+await a.waitForSelector("text=Anotado", { timeout: 15000 });
+const voto = await db.pollVote.findFirst({ where: { pollId: noAr.id }, include: { option: true } });
 conferir(voto?.option.label === "Estou testando", "o voto foi gravado");
 
+await a.waitForSelector("text=Voce ja opera com robo hoje?", { state: "hidden", timeout: 15000 });
+conferir(true, "depois de votar, a enquete some da sala");
+
+// e não volta: quem já votou não vê mais, nem recarregando
+const b = await sala("enq-a");
+await b.waitForSelector("text=Conversa", { timeout: 25000 });
+await b.waitForTimeout(2500);
+conferir(
+  !(await b.isVisible("text=Voce ja opera com robo hoje?")),
+  "e nem volta ao recarregar — o voto já veio marcado do servidor",
+);
+await b.close();
+
 // ── um voto por pessoa, com direito a trocar ────────────────────────────
-await a.click("button:has-text('Ja opero')");
-await a.waitForTimeout(1500);
+// A sala não oferece mais a troca, mas a regra do dado continua valendo:
+// um voto por pessoa, e trocar substitui em vez de somar.
+await fetch(`${BASE}/api/sala/enq-a/voto`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ pollId: noAr.id, optionId: noAr.options[0].id }),
+});
 const votos = await db.pollVote.findMany({ where: { pollId: noAr.id }, include: { option: true } });
 conferir(votos.length === 1, `um voto por pessoa (${votos.length})`);
-conferir(votos[0].option.label === "Ja opero", "e com direito a trocar");
+conferir(votos[0].option.label === "Ja opero", "e trocar substitui, não soma");
 
 // ── 5.4: votar numa enquete fora do ar é recusado ───────────────────────
 const foraDoAr = await fetch(`${BASE}/api/sala/enq-a/voto`, {
@@ -174,7 +192,10 @@ await comVotos.waitForTimeout(2000);
 const textoSala = await comVotos.innerText("aside");
 conferir(!/%/.test(textoSala), "com 9 votos, a sala continua sem mostrar porcentagem");
 conferir(!/\d+ votos?/.test(textoSala), "nem o total de votos");
-conferir(/sua resposta/.test(textoSala), "mas a escolha de quem votou fica marcada");
+conferir(
+  !/Voce ja opera com robo hoje\?/.test(textoSala),
+  "e quem já votou não vê mais a enquete",
+);
 
 // o número não chega nem ao navegador
 const respostaSala = await fetch(`${BASE}/api/sala/enq-a/chat`).then((r) => r.json());

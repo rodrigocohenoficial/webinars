@@ -112,6 +112,15 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
     assistindo = quantos >= w.audienciaMinima ? quantos : null;
   }
 
+  // As reacoes desta sessao. Mesma consulta, como tudo o mais: cada dado com
+  // endpoint proprio triplicaria a carga sem ganhar nada.
+  const reacoes = await db.reacao.findMany({
+    where: { sessionId: session.id },
+    orderBy: { videoTimeSec: "asc" },
+    take: 400,
+    select: { id: true, emoji: true, videoTimeSec: true },
+  });
+
   // Secao 10: enquete e oferta viajam junto do chat, na mesma consulta.
   // Cada dado com endpoint proprio triplica a carga sem ganhar nada.
   const oferta =
@@ -130,6 +139,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
       oferta,
       enquete,
       assistindo,
+      reacoes: reacoes.map((r) => ({ id: r.id, emoji: r.emoji, sec: r.videoTimeSec })),
       mensagens: mensagens.map((m) => ({
         id: m.id,
         autor: m.authorName,

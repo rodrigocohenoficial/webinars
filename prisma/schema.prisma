@@ -88,6 +88,7 @@ model Webinar {
   sessions Session[]
   messages ChatMessage[]
   polls    Poll[]
+  reacoes  Reacao[]
 }
 
 model ScheduleRule {
@@ -125,6 +126,7 @@ model Session {
   registrations Registration[]
   messages      ChatMessage[]
   votes         PollVote[]
+  reacoes       Reacao[]
 
   @@unique([webinarId, startsAt, ruleKey])
   @@index([webinarId, startsAt])
@@ -178,6 +180,7 @@ model Registration {
 
   messages ChatMessage[]
   votes    PollVote[]
+  reacoes  Reacao[]
 
   @@index([sessionId])
   @@index([email])
@@ -209,6 +212,30 @@ model ChatMessage {
   @@index([webinarId, status, videoTimeSec])
   @@index([sessionId, videoTimeSec])
   @@index([webinarId, status, createdAt])
+}
+
+/// Uma reacao rapida na sala. Mesma ideia do chat: presa ao segundo do
+/// video, nunca a hora do relogio — entao um 🔥 mandado aos 12 minutos
+/// reaparece aos 12 minutos em toda sessao seguinte, e a sala vai ficando
+/// mais viva sozinha.
+model Reacao {
+  id        String  @id @default(cuid())
+  webinarId String
+  webinar   Webinar @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+
+  /// so os quatro simbolos permitidos, validados no servidor
+  emoji        String
+  videoTimeSec Int
+
+  sessionId      String?
+  session        Session?      @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  registrationId String?
+  registration   Registration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([webinarId, videoTimeSec])
+  @@index([sessionId, videoTimeSec])
 }
 
 model Poll {

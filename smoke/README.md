@@ -38,6 +38,8 @@ O que cada um prova:
 
 | `oferta-no-fim.mjs` | a oferta reaparece na tela de encerramento · o clique conta, grampeado pela duração · desligada no painel não aparece · e ligá-la não antecipa a oferta durante a sessão |
 
+| `reacoes.mjs` | os quatro símbolos e só eles · 5.2 no segundo da reação · sobe e some sozinha · reação de uma sessão reaparece no minuto dela na seguinte · quem entra no meio não leva o histórico na cara |
+
 `etapa9.mjs` não manda e-mail de verdade: sobe um servidor local fazendo o papel do Resend e da
 Z-API (`RESEND_API_URL` e `ZAPI_BASE_URL` apontam para ele) e confere as regras, que é o que
 pode quebrar.

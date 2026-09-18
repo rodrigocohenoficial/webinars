@@ -97,7 +97,7 @@ sobe e diz na própria tela o que faltou.
 ```bash
 npm i -D playwright
 npm run dev          # em outro terminal
-npm run smoke        # 13 suítes, ~120 afirmações
+npm run smoke        # 15 suítes, ~160 afirmações
 ```
 
 Detalhes e o que cada suíte prova: [`smoke/README.md`](smoke/README.md).
@@ -120,6 +120,8 @@ Detalhes e o que cada suíte prova: [`smoke/README.md`](smoke/README.md).
 - [x] 12. Enquetes
 - [x] Pré-visualização da sala em qualquer momento
 - [x] Oferta repetida na tela de encerramento
+- [x] Quantos estão assistindo, na sala
+- [x] Reações rápidas, presas ao segundo do vídeo
 
 ## O que ainda precisa de uma conferida humana
 

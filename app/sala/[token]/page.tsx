@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { enquetesDoWebinario } from "@/lib/enquetes";
+import { trilhaDeReacoes } from "@/lib/reacoes";
 import { parseVideoUrl } from "@/lib/video";
 import Sala, { type DadosSala } from "./Sala";
 
@@ -34,6 +35,7 @@ export default async function PaginaSala({ params }: { params: Promise<{ token: 
   });
 
   const enquetes = await enquetesDoWebinario(w.id);
+  const reacoes = await trilhaDeReacoes(w.id);
 
   const dados: DadosSala = {
     token: inscricao.token,
@@ -56,6 +58,7 @@ export default async function PaginaSala({ params }: { params: Promise<{ token: 
     ehApresentador: inscricao.isHost,
     previa: false,
     enquetes,
+    reacoes,
     oferta:
       w.ctaUrl && w.ctaAtSec !== null
         ? {
