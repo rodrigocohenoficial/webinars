@@ -5,8 +5,15 @@ import type { Adaptador, PlayerRef } from "./tipos";
 import { criarYoutube } from "./youtube";
 import { criarVimeo } from "./vimeo";
 
-/** Armadilha 9.4: a marca do provedor aparece nos primeiros segundos. */
-const CORTINA_MS = 4000;
+/**
+ * Armadilha 9.4: a marca do provedor aparece nos primeiros segundos.
+ *
+ * Seis e nao quatro porque no celular a faixa do titulo demora mais para
+ * sumir — o player e menor, a marca ocupa mais dele, e o provedor a mantem
+ * na tela enquanto acha que a pessoa pode estar olhando. Segundo a mais de
+ * cortina custa pouco; marca do YouTube na abertura custa a sessao.
+ */
+const CORTINA_MS = 6000;
 
 /**
  * O provedor tambem pisca a propria marca — titulo, avatar do canal — quando
@@ -42,13 +49,25 @@ const ESPERA_APOS_AJUSTE_MS = 4000;
  *
  * O que funciona e o mesmo recurso do video de fundo: dar ao player um
  * tamanho maior que a caixa visivel, centralizado. A marca fica fora do
- * quadro. Cobrir so as bordas com faixa opaca perderia a mesma area da
- * imagem e ainda ficaria feio.
+ * quadro.
  *
- * 20% tira 10% de cada lado — a faixa do titulo do YouTube ocupa cerca de
- * 8% do alto, e a linha de baixo (logo, "mais videos") outro tanto.
+ * O quanto maior NAO pode ser uma porcentagem fixa. A marca do provedor tem
+ * tamanho em pixels, nao em proporcao: a mesma faixa que ocupa 8% da altura
+ * num player de mil pixels ocupa mais de 20% num de trezentos e noventa. Um
+ * recorte de 20% cobria no computador e nao chegava perto no celular.
+ *
+ * Entao calculamos: quantos pixels precisam sair de cima e de baixo, e o
+ * excesso sai disso.
  */
-const EXCESSO_DO_PLAYER = 1.2;
+const MARGEM_DA_MARCA_PX = 56;
+
+/**
+ * Teto do recorte. Sem ele, um player pequeno pediria um excesso tao grande
+ * que a imagem viraria um close no rosto de quem fala — e num video que
+ * mostra tela de grafico, cortaria justamente o que interessa.
+ */
+const EXCESSO_MAXIMO = 1.45;
+const EXCESSO_MINIMO = 1.12;
 
 type Estado = "carregando" | "tocando" | "mudo" | "manual" | "erro";
 
@@ -107,8 +126,12 @@ export default function Palco({
         a = A;
         l = A * proporcao;
       }
-      m.style.width = `${l * EXCESSO_DO_PLAYER}px`;
-      m.style.height = `${a * EXCESSO_DO_PLAYER}px`;
+      // o excesso que esconde MARGEM_DA_MARCA_PX de cima e de baixo
+      const pedido = (a + MARGEM_DA_MARCA_PX * 2) / a;
+      const excesso = Math.min(EXCESSO_MAXIMO, Math.max(EXCESSO_MINIMO, pedido));
+
+      m.style.width = `${l * excesso}px`;
+      m.style.height = `${a * excesso}px`;
     };
 
     redimensionar();
@@ -269,6 +292,10 @@ export default function Palco({
     a.definirMudo(false);
     try {
       await a.tocar();
+      // De novo depois que a reproducao confirmou: alguns players so aceitam
+      // o desmutar depois de estarem tocando, e a segunda chamada nao custa
+      // nada em quem ja aceitou a primeira.
+      a.definirMudo(false);
       setEstado("tocando");
     } catch {
       setEstado("mudo");
@@ -333,9 +360,9 @@ export default function Palco({
         <button
           type="button"
           onClick={ativarSom}
-          className="absolute inset-x-0 bottom-0 z-30 flex items-center justify-center gap-2 bg-[var(--acento)] py-3 text-[15px] font-semibold text-[#04120a]"
+          className="absolute inset-x-0 bottom-0 z-30 flex items-center justify-center gap-2 bg-[var(--acento)] py-4 text-[16px] font-semibold text-[#04120a] sm:py-3 sm:text-[15px]"
         >
-          Toque para ouvir
+          <span aria-hidden>🔊</span> Toque para ouvir
         </button>
       ) : null}
 

@@ -11,6 +11,24 @@ const log = (...a) => console.log("•", ...a);
 const falhas = [];
 const conferir = (ok, msg) => (ok ? log(msg, "✓") : (falhas.push(msg), log(msg, "✗ FALHOU")));
 
+/**
+ * Espera uma condição em vez de um tempo fixo.
+ *
+ * Em desenvolvimento, a primeira chamada a uma rota compila ela na hora — e
+ * isso passa de um segundo e meio com folga. Esperar tempo fixo passava
+ * sozinho, quando a rota já estava quente de uma execução anterior, e
+ * falhava na bateria inteira.
+ */
+async function esperarAte(condicao, prazoMs = 12000) {
+  const fim = Date.now() + prazoMs;
+  for (;;) {
+    const r = await condicao();
+    if (r) return r;
+    if (Date.now() > fim) return null;
+    await new Promise((ok) => setTimeout(ok, 300));
+  }
+}
+
 const semear = (args) =>
   JSON.parse(execFileSync("node", ["smoke/semear.mjs", ...args], { cwd: RAIZ, encoding: "utf8" }).trim().split("\n").pop());
 
@@ -34,10 +52,18 @@ const quantosBotoes = await a.locator("button[aria-label*='reagir']").count();
 conferir(quantosBotoes === 4, `a barra tem os quatro símbolos (${quantosBotoes})`);
 
 await a.click("button[aria-label='reagir com 🔥']");
-await a.waitForTimeout(1500);
-const gravadas = await db.reacao.findMany({ where: { webinarId: s.webinarId } });
-conferir(gravadas.length === 1 && gravadas[0].emoji === "🔥", `a reação foi gravada (${gravadas.map((r) => r.emoji)})`);
-conferir(gravadas[0].videoTimeSec < 120, `presa ao segundo do vídeo (${gravadas[0].videoTimeSec}s)`);
+const gravadas = await esperarAte(async () => {
+  const linhas = await db.reacao.findMany({ where: { webinarId: s.webinarId } });
+  return linhas.length > 0 ? linhas : null;
+});
+conferir(
+  gravadas?.length === 1 && gravadas[0].emoji === "🔥",
+  `a reação foi gravada (${gravadas?.map((r) => r.emoji) ?? "nenhuma"})`,
+);
+conferir(
+  (gravadas?.[0]?.videoTimeSec ?? 9999) < 120,
+  `presa ao segundo do vídeo (${gravadas?.[0]?.videoTimeSec}s)`,
+);
 
 // ── ela sobe na tela e some sozinha ────────────────────────────────────
 await a.click("button[aria-label='reagir com 👏']");

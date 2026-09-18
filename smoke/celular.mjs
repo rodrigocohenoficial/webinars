@@ -62,6 +62,25 @@ for (const [nome, largura, altura] of [
     `${nome}: a barra de reações fica abaixo do vídeo, não por cima do rosto`,
   );
 
+  /**
+   * O recorte tem que esconder a mesma quantidade de PIXELS em qualquer
+   * tamanho de tela. A marca do provedor não encolhe junto com o player:
+   * um recorte percentual cobria no computador e não chegava perto no
+   * celular, que foi exatamente o que aconteceu.
+   */
+  const recorte = await p.evaluate(() => {
+    const moldura = document.querySelector('[style*="aspect-ratio"] div[style*="px"]');
+    const caixa = document.querySelector('[style*="aspect-ratio"]');
+    if (!moldura || !caixa) return null;
+    const m = moldura.getBoundingClientRect();
+    const c = caixa.getBoundingClientRect();
+    return { escondidoEmCima: Math.round((m.height - c.height) / 2), alturaDaCaixa: Math.round(c.height) };
+  });
+  conferir(
+    recorte && recorte.escondidoEmCima >= 30,
+    `${nome}: o recorte esconde pixels suficientes da marca do provedor (${recorte?.escondidoEmCima}px de cada lado, caixa de ${recorte?.alturaDaCaixa}px)`,
+  );
+
   const escrever = await p.locator("input[placeholder='Escreva aqui']").boundingBox();
   conferir(escrever.width > 120, `${nome}: o campo de escrever cabe na tela (${Math.round(escrever.width)}px)`);
 
