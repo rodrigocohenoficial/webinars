@@ -19,13 +19,13 @@ enum ENUM_REF_FECHAMENTO
 enum ENUM_MODO_ENTRADA
   {
    ENTRADA_ABERTURA = 0,    // A mercado na abertura do candle seguinte
-   ENTRADA_RECUO    = 1     // Limitada, esperando recuo de X% do candle sinal
+   ENTRADA_RETORNO  = 1     // Espera recuar e voltar à abertura do candle
   };
 
-enum ENUM_CONTAGEM_PONTOS
+enum ENUM_UNIDADE_RECUO
   {
-   PONTOS_SOMA_CONTRATOS = 0, // Soma por contrato (parcial 40 + final 180 = 220)
-   PONTOS_MEDIA_POSICAO  = 1  // Média da posição (parcial 40 + final 180 = 110)
+   RECUO_PCT_CANDLE = 0,    // % do tamanho do candle sinal
+   RECUO_PONTOS     = 1     // Pontos
   };
 
 input group "Sinal"
@@ -37,7 +37,8 @@ input double               InpTamanhoMin    = 0;                  // Tamanho mí
 
 input group "Entrada"
 input ENUM_MODO_ENTRADA    InpModoEntrada   = ENTRADA_ABERTURA;   // Modo de entrada
-input double               InpRecuoPct      = 20.0;               // Recuo esperado (% do candle sinal)
+input double               InpRecuo         = 10.0;               // Modo retorno: recuo mínimo antes de entrar
+input ENUM_UNIDADE_RECUO   InpUnidadeRecuo  = RECUO_PCT_CANDLE;   // Modo retorno: unidade do recuo
 
 input group "Stop e alvos"
 input int                  InpStopFolgaTicks  = 1;                // Stop: ticks além da mín/máx do candle sinal
@@ -48,7 +49,7 @@ input double               InpAlvoPts         = 180;              // Alvo final 
 
 input group "Horários"
 input string               InpInicio        = "09:15";            // Início das entradas
-input string               InpUltimaEntrada = "17:00";            // Última entrada
+input string               InpUltimaEntrada = "13:00";            // Última entrada
 input string               InpZerar         = "17:30";            // Zera posição
 input string               InpHorariosBloq  = "09:30,10:00,10:30,11:00,11:30"; // Horários sem entrada
 input int                  InpMargemBloqMin = 5;                  // Minutos antes/depois de cada horário bloqueado
@@ -56,8 +57,7 @@ input int                  InpMargemBloqMin = 5;                  // Minutos ant
 input group "Gestão diária"
 input double               InpContratos     = 2;                  // Contratos por entrada
 input double               InpMetaDiaPts    = 500;                // Meta do dia (pontos, 0 = sem meta)
-input double               InpLossDiaPts    = 0;                  // Loss máximo do dia (pontos, 0 = sem limite)
-input ENUM_CONTAGEM_PONTOS InpContagem      = PONTOS_SOMA_CONTRATOS; // Como contar os pontos do dia
+input double               InpLossDiaPts    = 500;                // Loss máximo do dia (pontos, 0 = sem limite)
 input int                  InpMaxOperacoes  = 0;                  // Máximo de operações no dia (0 = sem limite)
 input ulong                InpMagic         = 2026100;            // Número mágico
 
@@ -66,6 +66,10 @@ datetime g_ultimoCandle  = 0;
 double   g_stopPlanejado = 0;     // stop da entrada em andamento, aplicado assim que a posição abre
 bool     g_parcialFeita  = false;
 bool     g_avisouSemStop = false;
+int      g_retornoDir    = 0;     // modo retorno: 1 compra / -1 venda armada no candle atual
+double   g_retornoPreco  = 0;     // abertura do candle, onde a entrada acontece
+double   g_retornoRecuo  = 0;     // recuo mínimo, em preço
+bool     g_recuou        = false;
 bool     g_hedging       = false;
 double   g_tick          = 0;
 int      g_minInicio, g_minUltima, g_minZerar;
@@ -97,9 +101,14 @@ int OnInit()
       Print("Contratos, alvo ou folga do stop inválidos.");
       return INIT_PARAMETERS_INCORRECT;
      }
-   if(InpModoEntrada == ENTRADA_RECUO && (InpRecuoPct <= 0 || InpRecuoPct >= 100))
+   if(MathMod(AjustarVolume(InpContratos), 2) != 0)
      {
-      Print("Recuo precisa estar entre 0 e 100%.");
+      Print("Contratos precisam ser pares.");
+      return INIT_PARAMETERS_INCORRECT;
+     }
+   if(InpModoEntrada == ENTRADA_RETORNO && InpRecuo <= 0)
+     {
+      Print("O recuo do modo retorno precisa ser maior que zero.");
       return INIT_PARAMETERS_INCORRECT;
      }
 
@@ -125,21 +134,24 @@ void OnTick()
 
    GerenciarPosicao(minutoAgora);
    if(minutoAgora >= g_minZerar)
+     {
       CancelarPendentes();
+      g_retornoDir = 0;
+     }
 
    datetime abertura = iTime(_Symbol, InpTimeframe, 0);
    if(abertura == 0)
       return;
    if(g_ultimoCandle == 0)
+      g_ultimoCandle = abertura;
+   else if(abertura != g_ultimoCandle)
      {
       g_ultimoCandle = abertura;
+      NovoCandle(abertura);   // a entrada por retorno de um candle não passa para o seguinte
       return;
      }
-   if(abertura == g_ultimoCandle)
-      return;
 
-   g_ultimoCandle = abertura;
-   NovoCandle(abertura);
+   MonitorarRetorno();
   }
 
 //+------------------------------------------------------------------+
@@ -147,7 +159,8 @@ void OnTick()
 //+------------------------------------------------------------------+
 void NovoCandle(datetime abertura)
   {
-   CancelarPendentes();   // a ordem de recuo só vale durante um candle
+   CancelarPendentes();   // a entrada por retorno só vale durante um candle
+   g_retornoDir = 0;
 
    ulong t; long tipo; double vol, preco, sl, tp;
    if(BuscarPosicao(t, tipo, vol, preco, sl, tp))
@@ -250,27 +263,66 @@ void Entrar(int direcao)
       return;
      }
 
-   // Recuo: limitada X% do candle sinal abaixo (compra) ou acima (venda) da abertura.
-   double abertura = iOpen(_Symbol, InpTimeframe, 0);
-   double recuo    = (h1 - l1) * InpRecuoPct / 100.0;
-   double limite   = (direcao > 0) ? ArredondarPreco(abertura - recuo) : ArredondarPreco(abertura + recuo);
-   if((direcao > 0 && limite <= stop) || (direcao < 0 && limite >= stop))
-      return;      // o recuo chegaria no stop
-
+   // Retorno: arma a entrada. MonitorarRetorno espera o candle recuar e
+   // coloca a ordem stop na abertura dele (= fechamento do candle sinal).
+   double recuo = (InpUnidadeRecuo == RECUO_PCT_CANDLE) ? (h1 - l1) * InpRecuo / 100.0 : InpRecuo;
    g_stopPlanejado = stop;
-   if(direcao > 0)
+   g_retornoDir    = direcao;
+   g_retornoPreco  = ArredondarPreco(iOpen(_Symbol, InpTimeframe, 0));
+   g_retornoRecuo  = MathMax(ArredondarPreco(recuo), g_tick);
+   g_recuou        = false;
+   MonitorarRetorno();
+  }
+
+//+------------------------------------------------------------------+
+//| Modo retorno: recuou o mínimo -> ordem stop na abertura do candle |
+//+------------------------------------------------------------------+
+void MonitorarRetorno()
+  {
+   if(g_retornoDir == 0)
+      return;
+
+   ulong t; long tipo; double vol, preco, sl, tp;
+   if(BuscarPosicao(t, tipo, vol, preco, sl, tp))
      {
-      if(ask <= limite)
-         trade.Buy(vol, _Symbol, 0, 0, 0, "recuo");
+      g_retornoDir = 0;   // entrou
+      return;
+     }
+
+   double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+
+   // Perdeu o candle sinal antes de entrar: setup invalidado.
+   if((g_retornoDir > 0 && bid <= g_stopPlanejado) || (g_retornoDir < 0 && ask >= g_stopPlanejado))
+     {
+      CancelarPendentes();
+      g_retornoDir = 0;
+      return;
+     }
+
+   if(g_recuou)
+      return;   // ordem stop já está na abertura
+
+   bool recuou = (g_retornoDir > 0) ? bid <= g_retornoPreco - g_retornoRecuo
+                                    : ask >= g_retornoPreco + g_retornoRecuo;
+   if(!recuou)
+      return;
+
+   g_recuou = true;
+   double volume = AjustarVolume(InpContratos);
+   if(g_retornoDir > 0)
+     {
+      if(ask >= g_retornoPreco)
+         trade.Buy(volume, _Symbol, 0, 0, 0, "retorno");
       else
-         trade.BuyLimit(vol, limite, _Symbol, 0, 0, TipoValidade(), 0, "recuo");
+         trade.BuyStop(volume, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, "retorno");
      }
    else
      {
-      if(bid >= limite)
-         trade.Sell(vol, _Symbol, 0, 0, 0, "recuo");
+      if(bid <= g_retornoPreco)
+         trade.Sell(volume, _Symbol, 0, 0, 0, "retorno");
       else
-         trade.SellLimit(vol, limite, _Symbol, 0, 0, TipoValidade(), 0, "recuo");
+         trade.SellStop(volume, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, "retorno");
      }
   }
 
@@ -393,8 +445,8 @@ void ResultadoDoDia(double &pontos, int &operacoes)
            }
      }
 
-   if(InpContagem == PONTOS_MEDIA_POSICAO)
-      pontos /= AjustarVolume(InpContratos);
+   // Pontos pelo preço médio: parcial de 40 + final de 180 = 110.
+   pontos /= AjustarVolume(InpContratos);
   }
 
 //+------------------------------------------------------------------+

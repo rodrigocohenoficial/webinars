@@ -10,9 +10,9 @@ Scalper de price action. Sem indicadores. Uso próprio em backtest e demo antes 
 - Tamanho total (máxima − mínima) de no máximo 500 pontos.
 - Não depende de tendência.
 
-**Entrada (candle seguinte)**
-- Modo `abertura`: a mercado na abertura.
-- Modo `recuo`: ordem limitada X% do tamanho do candle sinal contra a abertura. Se não executar dentro do candle, é cancelada.
+**Entrada (no fechamento do candle sinal = abertura do seguinte)**
+- Modo `abertura`: a mercado assim que o candle seguinte abre.
+- Modo `retorno`: espera o candle seguinte recuar um mínimo (em % do candle sinal ou em pontos) e entra quando ele volta à abertura. Se perder o candle sinal antes, ou se o candle acabar sem voltar, não entra.
 
 **Saída**
 - Stop: 1 tick além da mínima (compra) ou da máxima (venda) do candle sinal.
@@ -20,9 +20,10 @@ Scalper de price action. Sem indicadores. Uso próprio em backtest e demo antes 
 - Alvo final: 180 pontos.
 
 **Gestão**
-- Entradas a partir de 09:15. Última entrada às 17:00. Zera às 17:30.
+- Entradas a partir de 09:15. Última entrada às 13:00. Zera às 17:30.
 - Sem entradas em 09:30, 10:00, 10:30, 11:00 e 11:30, com margem de 5 min antes e depois. Exemplo para 09:30: não entra 09:25 nem 09:30; 09:35 já pode.
-- Meta do dia de 500 pontos. Ao atingir, para de abrir operações.
+- Meta do dia de 500 pontos e loss do dia de 500 pontos, contados pelo preço médio (parcial 40 + final 180 = 110). Ao atingir qualquer um, para de abrir operações.
+- Contratos sempre pares.
 - Uma operação por vez.
 
 Todos os números são parâmetros e podem ser otimizados no Strategy Tester.
@@ -49,18 +50,29 @@ Todos os números são parâmetros e podem ser otimizados no Strategy Tester.
 | Referência do fechamento | máxima/mínima | Fechar além da máxima/mínima ou do fechamento do anterior |
 | Corpo maior que X% | 50 | Força mínima do candle |
 | Tamanho máximo | 500 | Candle sinal maior que isso é ignorado |
-| Modo de entrada | abertura | `abertura` ou `recuo` |
-| Recuo | 20% | Só no modo `recuo` |
+| Modo de entrada | abertura | `abertura` ou `retorno` |
+| Recuo mínimo | 10% do candle sinal | Só no modo `retorno`. Também aceita pontos |
 | Folga do stop | 1 tick | Distância além da mín/máx do sinal |
 | Parcial | 40 pts / 50% | 0 desliga |
 | Stop no 0x0 após parcial | sim | |
 | Alvo final | 180 pts | |
 | Horários sem entrada | 09:30,10:00,10:30,11:00,11:30 | Separados por vírgula |
 | Margem | 5 min | Antes e depois de cada horário |
-| Contratos | 2 | Precisa ser par para a parcial de 50% |
-| Meta do dia | 500 pts | 0 desliga |
-| Contagem de pontos | soma por contrato | Parcial 40 + final 180 = 220 pts |
+| Última entrada | 13:00 | Teste outros horários |
+| Contratos | 2 | Sempre par |
+| Meta do dia | 500 pts | Preço médio. 0 desliga |
+| Loss do dia | 500 pts | Preço médio. 0 desliga |
 
-## WDO
+## WIN x WDO
 
-Os valores padrão são de WIN. Para o WDO, rode outra instância com tamanho máximo, parcial, alvo e meta em pontos de dólar. A folga do stop já está em ticks e serve para os dois.
+Os padrões do robô são de WIN. No WDO, rode outra instância trocando:
+
+| Parâmetro | WIN | WDO |
+|---|---|---|
+| Parcial | 40 | 2 |
+| Alvo final | 180 | 5 |
+| Meta do dia | 500 | 15 |
+| Tamanho máximo do candle | 500 | a definir |
+| Loss do dia | 500 | a definir |
+
+A folga do stop está em ticks e serve para os dois.
