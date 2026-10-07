@@ -8,11 +8,19 @@ Scalper de price action. Sem indicadores. Uso próprio em backtest e demo antes 
 - Corpo maior que 50% do tamanho total, ou seja, corpo maior que os pavios somados.
 - Compra: candle de alta que fecha acima da máxima do candle anterior. Venda: o espelho.
 - Tamanho total (máxima − mínima) de no máximo 500 pontos.
-- Não depende de tendência.
+- Filtro de tendência opcional (desligado por padrão), detalhado abaixo.
 
 **Entrada (no fechamento do candle sinal = abertura do seguinte)**
 - Modo `abertura`: a mercado assim que o candle seguinte abre.
 - Modo `retorno`: espera o candle seguinte recuar um mínimo (em % do candle sinal ou em pontos) e entra quando ele volta à abertura. Se perder o candle sinal antes, ou se o candle acabar sem voltar, não entra.
+
+**Tendência (topos e fundos)**
+- Topo: candle com máxima maior que a dos 2 candles de cada lado. Fundo: o espelho.
+- Alta: os 2 últimos topos e os 2 últimos fundos ascendentes. Baixa: os dois descendentes. Qualquer outra coisa conta como sem tendência.
+- Modos do filtro:
+  - `desligado`: opera qualquer direção.
+  - `só a favor`: compra só em alta e vende só em baixa. Sem tendência clara, não entra.
+  - `depois do horário`: livre até o horário escolhido (padrão 13:00) e depois só a favor da tendência. Para esse modo valer, a última entrada precisa ser depois desse horário.
 
 **Saída**
 - Stop: 1 tick além da mínima (compra) ou da máxima (venda) do candle sinal.
@@ -52,6 +60,10 @@ Todos os números são parâmetros e podem ser otimizados no Strategy Tester.
 | Tamanho máximo | 500 | Candle sinal maior que isso é ignorado |
 | Modo de entrada | abertura | `abertura` ou `retorno` |
 | Recuo mínimo | 10% do candle sinal | Só no modo `retorno`. Também aceita pontos |
+| Filtro de tendência | desligado | `desligado`, `só a favor` ou `depois do horário` |
+| Horário da tendência | 13:00 | Só no modo `depois do horário` |
+| Força do pivô | 2 | Candles de cada lado para confirmar topo/fundo |
+| Janela da tendência | 60 candles | Até onde procura os 2 últimos topos e fundos |
 | Folga do stop | 1 tick | Distância além da mín/máx do sinal |
 | Parcial | 40 pts / 50% | 0 desliga |
 | Stop no 0x0 após parcial | sim | |
@@ -72,7 +84,7 @@ Os padrões do robô são de WIN. No WDO, rode outra instância trocando:
 | Parcial | 40 | 2 |
 | Alvo final | 180 | 5 |
 | Meta do dia | 500 | 15 |
-| Tamanho máximo do candle | 500 | a definir |
-| Loss do dia | 500 | a definir |
+| Tamanho máximo do candle | 500 | 10 |
+| Loss do dia | 500 | 15 |
 
 A folga do stop está em ticks e serve para os dois.

@@ -28,6 +28,13 @@ enum ENUM_UNIDADE_RECUO
    RECUO_PONTOS     = 1     // Pontos
   };
 
+enum ENUM_FILTRO_TENDENCIA
+  {
+   TEND_DESLIGADO    = 0,   // Desligado (qualquer direção)
+   TEND_SEMPRE       = 1,   // Só a favor da tendência
+   TEND_APOS_HORARIO = 2    // Livre até o horário, depois só a favor
+  };
+
 input group "Sinal"
 input ENUM_TIMEFRAMES      InpTimeframe     = PERIOD_M5;          // Tempo gráfico do sinal
 input ENUM_REF_FECHAMENTO  InpRefFechamento = REF_MAXIMA_MINIMA;  // Referência do fechamento
@@ -39,6 +46,12 @@ input group "Entrada"
 input ENUM_MODO_ENTRADA    InpModoEntrada   = ENTRADA_ABERTURA;   // Modo de entrada
 input double               InpRecuo         = 10.0;               // Modo retorno: recuo mínimo antes de entrar
 input ENUM_UNIDADE_RECUO   InpUnidadeRecuo  = RECUO_PCT_CANDLE;   // Modo retorno: unidade do recuo
+
+input group "Tendência (topos e fundos)"
+input ENUM_FILTRO_TENDENCIA InpFiltroTendencia = TEND_DESLIGADO;  // Filtro de tendência
+input string               InpHorarioTendencia = "13:00";         // A partir de quando exige tendência (modo "depois do horário")
+input int                  InpPivotForca    = 2;                  // Candles de cada lado para confirmar topo/fundo
+input int                  InpTendJanela    = 60;                 // Candles analisados para achar topos e fundos
 
 input group "Stop e alvos"
 input int                  InpStopFolgaTicks  = 1;                // Stop: ticks além da mín/máx do candle sinal
@@ -72,7 +85,7 @@ double   g_retornoRecuo  = 0;     // recuo mínimo, em preço
 bool     g_recuou        = false;
 bool     g_hedging       = false;
 double   g_tick          = 0;
-int      g_minInicio, g_minUltima, g_minZerar;
+int      g_minInicio, g_minUltima, g_minZerar, g_minTendencia;
 int      g_bloqueados[];
 
 //+------------------------------------------------------------------+
@@ -88,9 +101,15 @@ int OnInit()
    g_minInicio = ParseHora(InpInicio);
    g_minUltima = ParseHora(InpUltimaEntrada);
    g_minZerar  = ParseHora(InpZerar);
-   if(g_minInicio < 0 || g_minUltima < 0 || g_minZerar < 0)
+   g_minTendencia = ParseHora(InpHorarioTendencia);
+   if(g_minInicio < 0 || g_minUltima < 0 || g_minZerar < 0 || g_minTendencia < 0)
      {
       Print("Horário inválido. Use o formato HH:MM.");
+      return INIT_PARAMETERS_INCORRECT;
+     }
+   if(InpPivotForca < 1 || InpTendJanela <= 2 * InpPivotForca)
+     {
+      Print("Força do pivô precisa ser >= 1 e a janela maior que o dobro dela.");
       return INIT_PARAMETERS_INCORRECT;
      }
    if(!ParseHorariosBloqueados(InpHorariosBloq))
@@ -192,8 +211,60 @@ void NovoCandle(datetime abertura)
    if(direcao == 0)
       return;
 
+   bool exigeTendencia = (InpFiltroTendencia == TEND_SEMPRE) ||
+                         (InpFiltroTendencia == TEND_APOS_HORARIO && minuto >= g_minTendencia);
+   if(exigeTendencia && Tendencia() != direcao)
+      return;
+
    Entrar(direcao);
    GerenciarPosicao(MinutoDoDia(TimeCurrent()));   // coloca stop e alvo sem esperar o próximo tick
+  }
+
+//+------------------------------------------------------------------+
+//| Tendência por topos e fundos: 1 = alta, -1 = baixa, 0 = sem      |
+//| tendência clara. Alta = últimos 2 topos e 2 fundos ascendentes.  |
+//+------------------------------------------------------------------+
+int Tendencia()
+  {
+   double topos[2], fundos[2];
+   int    nTopos = 0, nFundos = 0;
+
+   // [0] é o mais recente. Começa em força+1: o pivô precisa de candles fechados dos dois lados.
+   for(int i = InpPivotForca + 1; i <= InpTendJanela && (nTopos < 2 || nFundos < 2); i++)
+     {
+      if(nTopos < 2 && EhTopo(i))
+         topos[nTopos++] = iHigh(_Symbol, InpTimeframe, i);
+      if(nFundos < 2 && EhFundo(i))
+         fundos[nFundos++] = iLow(_Symbol, InpTimeframe, i);
+     }
+   if(nTopos < 2 || nFundos < 2)
+      return 0;
+
+   if(topos[0] > topos[1] && fundos[0] > fundos[1])
+      return 1;
+   if(topos[0] < topos[1] && fundos[0] < fundos[1])
+      return -1;
+   return 0;
+  }
+
+// Topo: máxima maior que a dos N candles de cada lado.
+bool EhTopo(int i)
+  {
+   double h = iHigh(_Symbol, InpTimeframe, i);
+   for(int k = 1; k <= InpPivotForca; k++)
+      if(iHigh(_Symbol, InpTimeframe, i - k) >= h || iHigh(_Symbol, InpTimeframe, i + k) > h)
+         return false;
+   return true;
+  }
+
+// Fundo: mínima menor que a dos N candles de cada lado.
+bool EhFundo(int i)
+  {
+   double l = iLow(_Symbol, InpTimeframe, i);
+   for(int k = 1; k <= InpPivotForca; k++)
+      if(iLow(_Symbol, InpTimeframe, i - k) <= l || iLow(_Symbol, InpTimeframe, i + k) < l)
+         return false;
+   return true;
   }
 
 //+------------------------------------------------------------------+
