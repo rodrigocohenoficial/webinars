@@ -109,7 +109,32 @@ export function acharSlotPermitido(
  * segundos e ninguem encontra ninguem no chat.
  */
 export function slotJit(now: Date, delayMin: number): Slot {
-  const alvo = now.getTime() + Math.max(1, delayMin) * 60000;
+  if (delayMin <= 0) {
+    // "Comeca agora": uma folga curta para a pessoa chegar na sala antes do
+    // primeiro segundo, senao ela entra com o gancho ja passado. Arredondado
+    // em blocos de 5s pelo mesmo motivo do minuto cheio abaixo.
+    const alvo = now.getTime() + FOLGA_IMEDIATO_SEC * 1000;
+    const startsAt = new Date(Math.ceil(alvo / 5000) * 5000);
+    return { startsAt, ruleKey: "jit", label: formatSlot(startsAt) };
+  }
+  const alvo = now.getTime() + delayMin * 60000;
   const startsAt = new Date(Math.ceil(alvo / 60000) * 60000);
   return { startsAt, ruleKey: "jit", label: formatSlot(startsAt) };
+}
+
+/** Segundos entre a inscricao e o inicio quando a opcao e "comeca agora". */
+export const FOLGA_IMEDIATO_SEC = 15;
+
+/** O texto da opcao na lista de horarios. */
+export function rotuloJit(delayMin: number): string {
+  if (delayMin <= 0) return "Comeca agora";
+  return `Comeca em ${delayMin} ${delayMin === 1 ? "minuto" : "minutos"}`;
+}
+
+/**
+ * Sessao que comeca em menos de um minuto: a pessoa vai direto para a sala,
+ * e o aviso de "comecou" ja nao tem o que avisar — ela esta la dentro.
+ */
+export function comecaJa(startsAt: Date, agora: Date): boolean {
+  return startsAt.getTime() - agora.getTime() < 60000;
 }

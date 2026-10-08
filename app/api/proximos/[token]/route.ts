@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { formatSlotLongo } from "@/lib/time";
-import { proximosSlots } from "@/lib/schedule";
+import { proximosSlots, rotuloJit } from "@/lib/schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
   }));
 
   if (w.jitEnabled) {
-    slots.unshift({ valor: "jit", label: `Comeca em ${w.jitDelayMin} minutos` });
+    slots.unshift({ valor: "jit", label: rotuloJit(w.jitDelayMin) });
   }
 
   return Response.json(
