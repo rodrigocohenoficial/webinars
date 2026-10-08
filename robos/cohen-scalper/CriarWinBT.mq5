@@ -7,7 +7,7 @@
 //|  Rodar uma vez (arrastar para qualquer gráfico).                  |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.00"
+#property version   "1.01"
 #property script_show_inputs
 
 input string   InpOrigem     = "WIN$N";            // Série contínua de origem
@@ -57,50 +57,64 @@ void OnStart()
                InpOrigem, InpDestino, TimeToString(InpDe, TIME_DATE), TimeToString(ate, TIME_DATE));
 
    // Um dia por vez: um mês inteiro de ticks do WIN não cabe na memória.
+   // O terminal baixa o histórico antigo sob demanda: dia útil sem ticks
+   // pode ser só download em andamento, então espera antes de pular.
    long total = 0;
-   int  diasComTicks = 0;
+   int  diasComTicks = 0, diasUteisVazios = 0, barras = 0;
    for(datetime dia = InpDe; dia < ate && !IsStopped(); dia += 86400)
      {
-      ulong de  = (ulong)dia * 1000;
+      MqlDateTime d;
+      TimeToStruct(dia, d);
+      bool diaUtil = (d.day_of_week >= 1 && d.day_of_week <= 5);
+      ulong de   = (ulong)dia * 1000;
       ulong ate_ = (ulong)MathMin(dia + 86400, ate) * 1000 - 1;
 
       MqlTick ticks[];
       int n = -1;
-      for(int tentativa = 0; tentativa < 10 && n < 0; tentativa++)
+      int tentativas = diaUtil ? 15 : 1;
+      for(int tentativa = 0; tentativa < tentativas && n <= 0; tentativa++)
         {
+         if(tentativa > 0)
+            Sleep(2000);
          n = CopyTicksRange(InpOrigem, ticks, COPY_TICKS_ALL, de, ate_);
-         if(n < 0)
-            Sleep(2000);   // a corretora ainda está enviando o histórico
         }
       if(n < 0)
         {
-         PrintFormat("Falhou ao baixar os ticks de %s (erro %d). Rode o script de novo a partir dessa data.",
+         PrintFormat("Falhou ao baixar os ticks de %s (erro %d). Rode o script de novo com 'a partir de' nessa data.",
                      TimeToString(dia, TIME_DATE), GetLastError());
          return;
         }
       if(n == 0)
-         continue;   // fim de semana ou feriado
+        {
+         if(diaUtil)
+           {
+            diasUteisVazios++;
+            PrintFormat("%s: sem ticks (feriado ou sem histórico na corretora)", TimeToString(dia, TIME_DATE));
+           }
+         continue;
+        }
 
       if(CustomTicksReplace(InpDestino, (long)de, (long)ate_, ticks) < 0)
         {
          PrintFormat("Falhou ao gravar os ticks de %s (erro %d).", TimeToString(dia, TIME_DATE), GetLastError());
          return;
         }
+
+      // Barras de 1 minuto do mesmo dia, para o gráfico e para o testador.
+      MqlRates m1[];
+      int nb = CopyRates(InpOrigem, PERIOD_M1, dia, (datetime)(ate_ / 1000), m1);
+      if(nb > 0 && CustomRatesReplace(InpDestino, dia, (datetime)(ate_ / 1000), m1) > 0)
+         barras += nb;
+
       total += n;
       diasComTicks++;
       if(diasComTicks % 20 == 0)
          PrintFormat("%s: %d pregões copiados, %I64d ticks", TimeToString(dia, TIME_DATE), diasComTicks, total);
      }
 
-   // Barras de 1 minuto, para o gráfico e para o testador.
-   MqlRates barras[];
-   int nb = CopyRates(InpOrigem, PERIOD_M1, InpDe, ate, barras);
-   if(nb > 0)
-      CustomRatesReplace(InpDestino, InpDe, ate, barras);
-
    SymbolSelect(InpDestino, true);
-   PrintFormat("Pronto: %s com %d pregões, %I64d ticks e %d barras de 1 minuto. Use %s no testador.",
-               InpDestino, diasComTicks, total, nb, InpDestino);
+   PrintFormat("Pronto: %s com %d pregões, %I64d ticks e %d barras de 1 minuto (%d dias úteis sem ticks). Use %s no testador.",
+               InpDestino, diasComTicks, total, barras, diasUteisVazios, InpDestino);
   }
 // Uma configuração que falha não interrompe a cópia: só avisa.
 void Configurar(string oque, bool ok)
