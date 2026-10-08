@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.05"
+#property version   "1.06"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -73,6 +73,7 @@ input double               InpMetaDiaPts    = 500;                // Meta do dia
 input double               InpLossDiaPts    = 500;                // Loss máximo do dia (pontos, 0 = sem limite)
 input int                  InpMaxOperacoes  = 0;                  // Máximo de operações no dia (0 = sem limite)
 input ulong                InpMagic         = 2026100;            // Número mágico
+input bool                 InpRegistrarDecisoes = true;           // Escrever no Diário o motivo de cada candle
 
 CTrade   trade;
 datetime g_ultimoCandle  = 0;
@@ -145,7 +146,7 @@ int OnInit()
    if(BuscarPosicao(t, tipo, vol, preco, sl, tp) && vol < AjustarVolume(InpContratos))
       g_parcialFeita = true;
 
-   Print("CohenScalper v1.05 carregado (stop e alvo executados pelo robô)");
+   Print("CohenScalper v1.06 carregado (registra o motivo de cada candle)");
    return INIT_SUCCEEDED;
   }
 
@@ -184,43 +185,81 @@ void NovoCandle(datetime abertura)
    CancelarPendentes();   // a entrada por retorno só vale durante um candle
    g_retornoDir = 0;
 
-   ulong t; long tipo; double vol, preco, sl, tp;
-   if(BuscarPosicao(t, tipo, vol, preco, sl, tp))
-      return;             // uma operação por vez
-
    int minuto = MinutoDoDia(abertura);
    if(minuto < g_minInicio || minuto > g_minUltima || minuto >= g_minZerar)
-      return;
+      return;             // fora do horário: sem registro no Diário
+
+   ulong t; long tipo; double vol, preco, sl, tp;
+   if(BuscarPosicao(t, tipo, vol, preco, sl, tp))
+     {
+      Registrar(abertura, "sem entrada: já está posicionado");
+      return;             // uma operação por vez
+     }
    if(HorarioBloqueado(minuto))
+     {
+      Registrar(abertura, "sem entrada: horário bloqueado");
       return;
+     }
 
    // Candle sinal (1) e anterior (2) precisam ser do mesmo pregão.
    datetime t1 = iTime(_Symbol, InpTimeframe, 1);
    datetime t2 = iTime(_Symbol, InpTimeframe, 2);
    if(t1 == 0 || t2 == 0 || !MesmoDia(t1, t2) || !MesmoDia(t1, abertura))
+     {
+      Registrar(abertura, "sem entrada: candle sinal ou anterior é de outro pregão");
       return;
+     }
 
    double pontosDia;
    int    operacoes;
    ResultadoDoDia(pontosDia, operacoes);
    if(InpMetaDiaPts > 0 && pontosDia >= InpMetaDiaPts)
+     {
+      Registrar(abertura, StringFormat("sem entrada: meta do dia atingida (%.0f pts)", pontosDia));
       return;
+     }
    if(InpLossDiaPts > 0 && pontosDia <= -InpLossDiaPts)
+     {
+      Registrar(abertura, StringFormat("sem entrada: loss do dia atingido (%.0f pts)", pontosDia));
       return;
+     }
    if(InpMaxOperacoes > 0 && operacoes >= InpMaxOperacoes)
+     {
+      Registrar(abertura, StringFormat("sem entrada: máximo de %d operações no dia", operacoes));
       return;
+     }
 
-   int direcao = Sinal();
+   string motivo;
+   int direcao = Sinal(motivo);
    if(direcao == 0)
+     {
+      Registrar(abertura, "sem entrada: " + motivo);
       return;
+     }
 
    bool exigeTendencia = (InpFiltroTendencia == TEND_SEMPRE) ||
                          (InpFiltroTendencia == TEND_APOS_HORARIO && minuto >= g_minTendencia);
-   if(exigeTendencia && Tendencia() != direcao)
-      return;
+   if(exigeTendencia)
+     {
+      int tend = Tendencia();
+      if(tend != direcao)
+        {
+         Registrar(abertura, StringFormat("sem entrada: %s contra a tendência (%s)", motivo,
+                   tend > 0 ? "alta" : tend < 0 ? "baixa" : "sem tendência clara"));
+         return;
+        }
+     }
 
+   Registrar(abertura, motivo + StringFormat(" | dia: %.0f pts", pontosDia));
    Entrar(direcao);
    GerenciarPosicao(MinutoDoDia(TimeCurrent()));   // coloca stop e alvo sem esperar o próximo tick
+  }
+
+// Escreve no Diário a decisão de cada candle, para conferir o robô contra a leitura do trader.
+void Registrar(datetime abertura, string texto)
+  {
+   if(InpRegistrarDecisoes)
+      PrintFormat("[%s] %s", TimeToString(abertura, TIME_MINUTES), texto);
   }
 
 //+------------------------------------------------------------------+
@@ -273,7 +312,7 @@ bool EhFundo(int i)
 //+------------------------------------------------------------------+
 //| 1 = compra, -1 = venda, 0 = sem sinal                            |
 //+------------------------------------------------------------------+
-int Sinal()
+int Sinal(string &motivo)
   {
    double o1 = iOpen(_Symbol, InpTimeframe, 1);
    double h1 = iHigh(_Symbol, InpTimeframe, 1);
@@ -282,31 +321,53 @@ int Sinal()
    double h2 = iHigh(_Symbol, InpTimeframe, 2);
    double l2 = iLow(_Symbol, InpTimeframe, 2);
    double c2 = iClose(_Symbol, InpTimeframe, 2);
+   string hora = TimeToString(iTime(_Symbol, InpTimeframe, 1), TIME_MINUTES);
 
    double tamanho = h1 - l1;
+   double corpo   = MathAbs(c1 - o1);
+   motivo = StringFormat("candle %s (A %.0f M %.0f m %.0f F %.0f, %.0f pts, corpo %.0f%%)",
+                         hora, o1, h1, l1, c1, tamanho, tamanho > 0 ? corpo * 100.0 / tamanho : 0);
+
    if(tamanho <= 0)
+     {
+      motivo += " sem amplitude";
       return 0;
+     }
    if(InpTamanhoMax > 0 && tamanho > InpTamanhoMax)
+     {
+      motivo += StringFormat(" maior que o máximo de %.0f", InpTamanhoMax);
       return 0;
+     }
    if(InpTamanhoMin > 0 && tamanho < InpTamanhoMin)
+     {
+      motivo += StringFormat(" menor que o mínimo de %.0f", InpTamanhoMin);
       return 0;
-
-   double corpo = MathAbs(c1 - o1);
+     }
    if(corpo * 100.0 <= InpCorpoMinPct * tamanho)
+     {
+      motivo += StringFormat(" corpo não passa de %.0f%%", InpCorpoMinPct);
       return 0;
+     }
 
+   bool porMaxMin = (InpRefFechamento == REF_MAXIMA_MINIMA);
    if(c1 > o1)
      {
-      double ref = (InpRefFechamento == REF_MAXIMA_MINIMA) ? h2 : c2;
+      double ref = porMaxMin ? h2 : c2;
       if(c1 > ref)
+        {
+         motivo = "COMPRA: " + motivo;
          return 1;
+        }
+      motivo += StringFormat(" de alta não fechou acima %s anterior (%.0f)", porMaxMin ? "da máxima" : "do fechamento", ref);
+      return 0;
      }
-   if(c1 < o1)
+   double ref = porMaxMin ? l2 : c2;
+   if(c1 < ref)
      {
-      double ref = (InpRefFechamento == REF_MAXIMA_MINIMA) ? l2 : c2;
-      if(c1 < ref)
-         return -1;
+      motivo = "VENDA: " + motivo;
+      return -1;
      }
+   motivo += StringFormat(" de baixa não fechou abaixo %s anterior (%.0f)", porMaxMin ? "da mínima" : "do fechamento", ref);
    return 0;
   }
 
@@ -329,7 +390,10 @@ void Entrar(int direcao)
      {
       double preco = (direcao > 0) ? ask : bid;
       if((direcao > 0 && preco <= stop) || (direcao < 0 && preco >= stop))
+        {
+         Registrar(iTime(_Symbol, InpTimeframe, 0), "entrada cancelada: abriu além do stop");
          return;   // abriu com gap além do stop
+        }
       g_stopPlanejado   = stop;
       g_precoReferencia = preco;
       if(direcao > 0)
