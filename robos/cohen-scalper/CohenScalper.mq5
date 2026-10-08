@@ -83,6 +83,8 @@ int      g_retornoDir    = 0;     // modo retorno: 1 compra / -1 venda armada no
 double   g_retornoPreco  = 0;     // abertura do candle, onde a entrada acontece
 double   g_retornoRecuo  = 0;     // recuo mínimo, em preço
 bool     g_recuou        = false;
+double   g_precoReferencia = 0;   // preço no envio da ordem, reserva se a posição vier sem preço
+int      g_falhasStop    = 0;
 bool     g_hedging       = false;
 double   g_tick          = 0;
 int      g_minInicio, g_minUltima, g_minZerar, g_minTendencia;
@@ -318,15 +320,17 @@ void Entrar(int direcao)
    double bid   = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    double vol   = AjustarVolume(InpContratos);
 
-   g_parcialFeita = false;
+   g_parcialFeita  = false;
    g_avisouSemStop = false;
+   g_falhasStop    = 0;
 
    if(InpModoEntrada == ENTRADA_ABERTURA)
      {
       double preco = (direcao > 0) ? ask : bid;
       if((direcao > 0 && preco <= stop) || (direcao < 0 && preco >= stop))
          return;   // abriu com gap além do stop
-      g_stopPlanejado = stop;
+      g_stopPlanejado   = stop;
+      g_precoReferencia = preco;
       if(direcao > 0)
          trade.Buy(vol, _Symbol, 0, 0, 0, "abertura");
       else
@@ -341,6 +345,7 @@ void Entrar(int direcao)
    g_retornoDir    = direcao;
    g_retornoPreco  = ArredondarPreco(iOpen(_Symbol, InpTimeframe, 0));
    g_retornoRecuo  = MathMax(ArredondarPreco(recuo), g_tick);
+   g_precoReferencia = g_retornoPreco;
    g_recuou        = false;
    MonitorarRetorno();
   }
@@ -435,7 +440,14 @@ void GerenciarPosicao(int minutoAgora)
          return;
         }
       double alvo = (tipo == POSITION_TYPE_BUY) ? preco + InpAlvoPts : preco - InpAlvoPts;
-      trade.PositionModify(ticket, g_stopPlanejado, ArredondarPreco(alvo));
+      bool ok = preco > 0 && trade.PositionModify(ticket, g_stopPlanejado, ArredondarPreco(alvo)) &&
+                trade.ResultRetcode() == TRADE_RETCODE_DONE;
+      if(!ok && ++g_falhasStop >= 5)
+        {
+         // Posição sem stop não fica aberta.
+         PrintFormat("Não consegui colocar stop e alvo (preço de entrada %.2f). Zerando por segurança.", preco);
+         trade.PositionClose(ticket);
+        }
       return;
      }
 
@@ -538,9 +550,32 @@ bool BuscarPosicao(ulong &ticket, long &tipo, double &volume, double &preco, dou
       preco  = PositionGetDouble(POSITION_PRICE_OPEN);
       sl     = PositionGetDouble(POSITION_SL);
       tp     = PositionGetDouble(POSITION_TP);
+      // Na série contínua da B3 a posição pode vir com preço de abertura zerado.
+      // Busca o preço no negócio de entrada e, em último caso, usa o preço do envio.
+      if(preco <= 0)
+         preco = PrecoDaEntrada(PositionGetInteger(POSITION_IDENTIFIER));
+      if(preco <= 0)
+         preco = g_precoReferencia;
       return true;
      }
    return false;
+  }
+
+double PrecoDaEntrada(long idPosicao)
+  {
+   if(!HistorySelectByPosition(idPosicao))
+      return 0;
+   for(int i = HistoryDealsTotal() - 1; i >= 0; i--)
+     {
+      ulong deal = HistoryDealGetTicket(i);
+      if(deal > 0 && HistoryDealGetInteger(deal, DEAL_ENTRY) == DEAL_ENTRY_IN)
+        {
+         double p = HistoryDealGetDouble(deal, DEAL_PRICE);
+         if(p > 0)
+            return p;
+        }
+     }
+   return 0;
   }
 
 void CancelarPendentes()
