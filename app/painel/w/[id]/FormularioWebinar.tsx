@@ -292,12 +292,13 @@ export default function FormularioWebinar({ inicial }: { inicial: WebinarForm })
               id="jitDelayMin"
               name="jitDelayMin"
               type="number"
-              min={1}
+              min={0}
               max={120}
               className="campo"
               value={f.jitDelayMin}
               onChange={(e) => set("jitDelayMin", e.target.value)}
             />
+            <p className="ajuda">0 = comeca agora: a pessoa se inscreve e cai direto na sala.</p>
           </div>
         </div>
         <div className="space-y-3 border-t border-[var(--borda)] pt-4">
@@ -305,7 +306,7 @@ export default function FormularioWebinar({ inicial }: { inicial: WebinarForm })
             nome="jitEnabled"
             ligado={f.jitEnabled}
             aoMudar={(v) => set("jitEnabled", v)}
-            titulo="Oferecer a opcao &quot;comeca em N minutos&quot;"
+            titulo="Oferecer a opcao &quot;comeca em N minutos&quot; (ou &quot;comeca agora&quot;, com 0)"
             ajuda="Quem chega agora nao precisa esperar ate o proximo horario da grade."
           />
           <Interruptor

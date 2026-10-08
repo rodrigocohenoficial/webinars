@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { formatSlotLongo } from "@/lib/time";
 import LinkPessoal from "./LinkPessoal";
 import PixelLead from "./PixelLead";
+import EntrarJa from "./EntrarJa";
+import { comecaJa } from "@/lib/schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +28,17 @@ export default async function Obrigado({ params }: { params: Promise<{ token: st
   const link = `${base}/sala/${inscricao.token}`;
   const primeiroNome = inscricao.name.split(" ")[0];
 
+  // "Comeca agora": a confirmacao aparece o suficiente para o pixel contar o
+  // lead, e a pessoa segue sozinha para a sala.
+  const agora = new Date();
+  const direto =
+    comecaJa(inscricao.session.startsAt, agora) &&
+    agora.getTime() - inscricao.session.startsAt.getTime() < 60000;
+
   return (
     <main className="mx-auto flex min-h-dvh max-w-xl flex-col justify-center px-5 py-10">
       <PixelLead pixelId={process.env.NEXT_PUBLIC_META_PIXEL_ID} eventId={inscricao.id} />
+      {direto ? <EntrarJa link={`/sala/${inscricao.token}`} /> : null}
 
       <div className="cartao space-y-6">
         <div>
@@ -39,7 +49,9 @@ export default async function Obrigado({ params }: { params: Promise<{ token: st
           <p className="mt-2 text-[15px] leading-relaxed text-[var(--texto-2)]">
             {w.title}
             <br />
-            <strong className="text-[var(--texto)]">{formatSlotLongo(inscricao.session.startsAt)}</strong>
+            <strong className="text-[var(--texto)]">
+              {direto ? "Comecando agora — levando voce para a sala..." : formatSlotLongo(inscricao.session.startsAt)}
+            </strong>
           </p>
         </div>
 
@@ -52,17 +64,20 @@ export default async function Obrigado({ params }: { params: Promise<{ token: st
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">
-          <a href={`/api/ics/${inscricao.token}`} className="botao flex-1">
-            Colocar na agenda
-          </a>
-          <a href={link} className="botao-fantasma flex-1">
-            Abrir a sala
+          {direto ? null : (
+            <a href={`/api/ics/${inscricao.token}`} className="botao flex-1">
+              Colocar na agenda
+            </a>
+          )}
+          <a href={link} className={direto ? "botao flex-1" : "botao-fantasma flex-1"}>
+            {direto ? "Entrar agora" : "Abrir a sala"}
           </a>
         </div>
 
         <p className="ajuda border-t border-[var(--borda)] pt-4">
           Mandamos o link no seu e-mail
-          {inscricao.phone ? " e no WhatsApp" : ""}, e um lembrete 15 minutos antes de comecar.
+          {inscricao.phone ? " e no WhatsApp" : ""}
+          {direto ? ". Se fechar esta aba, e so abrir o link de novo." : ", e um lembrete 15 minutos antes de comecar."}
         </p>
       </div>
     </main>

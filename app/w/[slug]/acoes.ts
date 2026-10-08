@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { novoToken } from "@/lib/auth";
-import { acharSlotPermitido, slotJit } from "@/lib/schedule";
+import { acharSlotPermitido, comecaJa, slotJit } from "@/lib/schedule";
 import { emailValido, texto, textoOuNulo } from "@/lib/texto";
 import { normalizarTelefoneBR } from "@/lib/phone";
 import { enviarConfirmacao } from "@/lib/avisos";
@@ -85,6 +85,8 @@ export async function inscrever(
       utmMedium: textoOuNulo(formData.get("utmMedium")),
       utmCampaign: textoOuNulo(formData.get("utmCampaign")),
       referrer: textoOuNulo(formData.get("referrer")),
+      // vai direto para a sala: o aviso de "comecou" chegaria com ela dentro
+      startNoticeSentAt: comecaJa(startsAt, agora) ? agora : null,
     },
     select: { id: true, token: true },
   });

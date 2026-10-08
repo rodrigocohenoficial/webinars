@@ -179,7 +179,10 @@ export async function salvarWebinar(_prev: EstadoForm, formData: FormData): Prom
     waitingVideoUrl,
     published,
     jitEnabled: ligado(formData.get("jitEnabled")),
-    jitDelayMin: Math.min(120, Math.max(1, inteiro(formData.get("jitDelayMin"), 10))),
+    // campo vazio volta ao padrao; so o 0 digitado vira "comeca agora"
+    jitDelayMin: texto(formData.get("jitDelayMin"))
+      ? Math.min(120, Math.max(0, inteiro(formData.get("jitDelayMin"), 10)))
+      : 10,
     joinWindowMin: Math.max(0, inteiro(formData.get("joinWindowMin"), 0)),
     visibleSlots: Math.min(12, Math.max(1, inteiro(formData.get("visibleSlots"), 4))),
     chatAoVivo: ligado(formData.get("chatAoVivo")),

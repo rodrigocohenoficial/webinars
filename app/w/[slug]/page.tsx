@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatSlotLongo } from "@/lib/time";
-import { proximosSlots } from "@/lib/schedule";
+import { proximosSlots, rotuloJit } from "@/lib/schedule";
 import Inscricao, { type SlotView } from "./Inscricao";
 
 export const dynamic = "force-dynamic";
@@ -71,7 +71,7 @@ export default async function PaginaInscricao({ params }: { params: Promise<{ sl
   if (w.jitEnabled) {
     slots.unshift({
       valor: "jit",
-      label: `Comeca em ${w.jitDelayMin} minutos`,
+      label: rotuloJit(w.jitDelayMin),
       destaque: "mais cedo",
     });
   }

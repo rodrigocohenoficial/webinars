@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { novoToken } from "@/lib/auth";
-import { acharSlotPermitido, slotJit } from "@/lib/schedule";
+import { acharSlotPermitido, comecaJa, slotJit } from "@/lib/schedule";
 import { texto } from "@/lib/texto";
 
 export type EstadoReinscricao = { erro?: string };
@@ -75,6 +75,7 @@ export async function reinscrever(
       utmMedium: original.utmMedium,
       utmCampaign: original.utmCampaign,
       referrer: original.referrer,
+      startNoticeSentAt: comecaJa(startsAt, agora) ? agora : null,
     },
     select: { token: true },
   });
