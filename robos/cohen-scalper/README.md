@@ -50,6 +50,13 @@ Todos os números são parâmetros e podem ser otimizados no Strategy Tester.
 - **Custos:** o Tester não desconta os emolumentos da B3. Vamos descontar na análise dos resultados.
 - O horário usado é o do servidor da corretora. Confirme que está em horário de Brasília.
 
+## Backtest longo: WIN$N x WIN_BT
+
+No `WIN$N` da corretora o valor do ponto vem zerado: o testador executa as ordens a preços certos, mas mostra lucro 0,00 em tudo. Dois caminhos:
+
+1. **Rodar no `WIN$N` mesmo.** O robô calcula o resultado pelos preços executados. Ignore a aba Backtest e use o `RESUMO` no Diário e o arquivo `CohenScalper_WIN$N_teste.csv`.
+2. **Criar o `WIN_BT` (relatório nativo em R$).** Copie `CriarWinBT.mq5` para **MQL5 → Scripts**, compile, arraste para qualquer gráfico e aguarde o "Pronto" na aba Experts. Ele copia os ticks do `WIN$N` para um símbolo personalizado com R$ 1,00 por tick de 5 pontos. Depois é só testar no `WIN_BT`.
+
 ## Parâmetros principais
 
 | Parâmetro | Padrão | O que faz |
