@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.12"
+#property version   "1.13"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -76,7 +76,8 @@ input double               InpMetaDiaPts    = 500;                // Meta do dia
 input double               InpLossDiaPts    = 500;                // Loss máximo do dia (pontos, 0 = sem limite)
 input int                  InpMaxOperacoes  = 0;                  // Máximo de operações no dia (0 = sem limite)
 input ulong                InpMagic         = 2026100;            // Número mágico
-input bool                 InpRegistrarDecisoes = true;           // Escrever no Diário o motivo de cada candle
+input bool                 InpRegistrarDecisoes = false;          // Escrever no Diário o motivo de cada candle
+input bool                 InpGravarCSV     = false;              // Gravar as operações em CSV (pasta Common/Files)
 
 input group "Reentrada"
 input int                  InpMaxReentradas = 0;                  // Reentradas por sinal depois de sair no 0x0 (0 = desligado)
@@ -99,8 +100,7 @@ double   g_tick          = 0;
 int      g_minInicio, g_minUltima, g_minZerar, g_minTendencia;
 int      g_bloqueados[];
 
-// Livro próprio de operações, em pontos pelo preço executado. No WIN$N o testador
-// executa as ordens mas não calcula o lucro em R$ (fica tudo 0,00).
+// Livro próprio de operações, em pontos pelo preço executado (RESUMO no Diário e CSV opcional).
 long     g_posId         = 0;     // posição acompanhada
 double   g_posStop       = 0;     // stop inicial dela
 double   g_mfe           = 0;     // maior lucro a favor durante a operação (pontos)
@@ -179,7 +179,7 @@ int OnInit()
       g_parcialFeita = true;
 
    AbrirArquivo();
-   Print("CohenScalper v1.12 carregado");
+   Print("CohenScalper v1.13 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -209,7 +209,7 @@ double OnTester()
    return g_totalPts;
   }
 
-// Valor do ponto por contrato. No WIN$N o MT5 informa zero, então vai pela tabela da B3.
+// Valor do ponto por contrato, pela tabela da B3.
 double ReaisPorPonto()
   {
    if(StringFind(_Symbol, "WIN") == 0) return 0.20;
@@ -222,7 +222,7 @@ double ReaisPorPonto()
 // Uma linha por operação. No testador recria o arquivo; em conta real acrescenta.
 void AbrirArquivo()
   {
-   if(MQLInfoInteger(MQL_OPTIMIZATION))
+   if(!InpGravarCSV || MQLInfoInteger(MQL_OPTIMIZATION))
       return;
    bool testador = (bool)MQLInfoInteger(MQL_TESTER);
    g_nomeArquivo = "CohenScalper_" + _Symbol + (testador ? "_teste" : "") + ".csv";
