@@ -1,4 +1,4 @@
-# CohenScalper (MQL5) — v1
+# CohenScalper (MQL5) — v1.16
 
 Scalper de price action. Sem indicadores. Uso próprio em backtest e demo antes de qualquer versão para alunos (depois porta para NTSL).
 
@@ -7,12 +7,13 @@ Scalper de price action. Sem indicadores. Uso próprio em backtest e demo antes 
 **Sinal (candle que acabou de fechar)**
 - Corpo maior que 50% do tamanho total, ou seja, corpo maior que os pavios somados.
 - Compra: candle de alta que fecha acima da máxima do candle anterior. Venda: o espelho.
-- Tamanho total (máxima − mínima) de no máximo 500 pontos.
+- Tamanho total (máxima − mínima) de no máximo 2000 pontos (na prática, sem limite).
 - Filtro de tendência opcional (desligado por padrão), detalhado abaixo.
 
 **Entrada (no fechamento do candle sinal = abertura do seguinte)**
+- Modo `retorno` (padrão): espera o candle seguinte recuar um mínimo (em % do candle sinal ou em pontos) e entra quando ele volta à abertura. Se perder o candle sinal antes, ou se o candle acabar sem voltar, não entra.
 - Modo `abertura`: a mercado assim que o candle seguinte abre.
-- Modo `retorno`: espera o candle seguinte recuar um mínimo (em % do candle sinal ou em pontos) e entra quando ele volta à abertura. Se perder o candle sinal antes, ou se o candle acabar sem voltar, não entra.
+- Reentrada (padrão 1): saiu no 0x0 e o preço voltou à entrada em até 5 min → entra de novo, mesmo stop e alvos.
 
 **Tendência (topos e fundos)**
 - Topo: candle com máxima maior que a dos 2 candles de cada lado. Fundo: o espelho.
@@ -50,12 +51,24 @@ Todos os números são parâmetros e podem ser otimizados no Strategy Tester.
 - **Custos:** o Tester não desconta os emolumentos da B3. Vamos descontar na análise dos resultados.
 - O horário usado é o do servidor da corretora. Confirme que está em horário de Brasília.
 
-## Backtest longo: WIN$N x WIN_BT
+## Armadilhas do testador (aprendidas na marra)
 
-No `WIN$N` da corretora o valor do ponto vem zerado: o testador executa as ordens a preços certos, mas mostra lucro 0,00 em tudo. Dois caminhos:
+- **Depósito em BRL.** Em USD o testador não converte o resultado: lucro 0,00, ordens recusadas por margem e meses inteiros sem operação.
+- **Ticks reais sempre.** "OHLC de 1 minuto" inventa o caminho do preço dentro do minuto e inflou o resultado em ~3x neste robô.
+- **Atraso fixo (100 ms).** Atraso aleatório muda o resultado a cada rodada.
+- **Histórico da XP:** o `WIN$N` não tem ticks de mar–set/2026. Valide em jan/2025–fev/2026 e use a conta demo para o período recente.
 
-1. **Rodar no `WIN$N` mesmo.** O robô calcula o resultado pelos preços executados. Ignore a aba Backtest e use o `RESUMO` no Diário e o arquivo `CohenScalper_WIN$N_teste.csv`.
-2. **Criar o `WIN_BT` (relatório nativo em R$).** Copie `CriarWinBT.mq5` para **MQL5 → Scripts**, compile, arraste para qualquer gráfico e aguarde o "Pronto" na aba Experts. Ele copia os ticks do `WIN$N` para um símbolo personalizado com R$ 1,00 por tick de 5 pontos. Depois é só testar no `WIN_BT`.
+## Validação (v1.16, WIN$N, ticks reais, 2 contratos, sem custos)
+
+Otimização em jan–set/2025, prova em out/2025–fev/2026 (Avançar do MT5):
+
+| | Escolha (9 meses) | Prova (5 meses) |
+|---|---|---|
+| Resultado | R$ 9.682 | R$ 6.015 |
+| Por mês | ~R$ 1.076 | ~R$ 1.203 |
+| Pior queda | 0,71% | 0,45% |
+
+A mesma configuração ficou em 1º lugar nos dois períodos. Tamanho máximo de 1.500 a 2.000 dá o mesmo resultado (platô). Filtro de tendência e 2–3 reentradas não melhoram.
 
 ## Parâmetros principais
 
@@ -64,8 +77,8 @@ No `WIN$N` da corretora o valor do ponto vem zerado: o testador executa as orden
 | Tempo gráfico | M5 | Tempo do candle sinal |
 | Referência do fechamento | máxima/mínima | Fechar além da máxima/mínima ou do fechamento do anterior |
 | Corpo maior que X% | 50 | Força mínima do candle |
-| Tamanho máximo | 500 | Candle sinal maior que isso é ignorado |
-| Modo de entrada | abertura | `abertura` ou `retorno` |
+| Tamanho máximo | 2000 | Candle sinal maior que isso é ignorado |
+| Modo de entrada | retorno | `abertura` ou `retorno` |
 | Recuo mínimo | 10% do candle sinal | Só no modo `retorno`. Também aceita pontos |
 | Unidade do recuo | % do candle | `%`, `pontos` ou `FVG` (até a máx/mín do candle anterior ao sinal) |
 | Entrar limitado no recuo | não | Sim: ordem limitada no ponto do recuo, sem esperar voltar à abertura |
@@ -84,6 +97,7 @@ No `WIN$N` da corretora o valor do ponto vem zerado: o testador executa as orden
 | Contratos | 2 | Sempre par |
 | Meta do dia | 500 pts | Preço médio. 0 desliga |
 | Loss do dia | 500 pts | Preço médio. 0 desliga |
+| Reentradas | 1 | Depois de sair no 0x0. 0 desliga |
 
 ## WIN x WDO
 

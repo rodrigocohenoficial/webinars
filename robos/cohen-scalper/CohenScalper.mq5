@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.15"
+#property version   "1.16"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -40,11 +40,11 @@ input group "Sinal"
 input ENUM_TIMEFRAMES      InpTimeframe     = PERIOD_M5;          // Tempo gráfico do sinal
 input ENUM_REF_FECHAMENTO  InpRefFechamento = REF_MAXIMA_MINIMA;  // Referência do fechamento
 input double               InpCorpoMinPct   = 50.0;               // Corpo maior que X% do candle (50 = corpo > pavios)
-input double               InpTamanhoMax    = 500;                // Tamanho máximo do candle sinal (pontos)
+input double               InpTamanhoMax    = 2000;               // Tamanho máximo do candle sinal (pontos)
 input double               InpTamanhoMin    = 0;                  // Tamanho mínimo do candle sinal (pontos, 0 = sem filtro)
 
 input group "Entrada"
-input ENUM_MODO_ENTRADA    InpModoEntrada   = ENTRADA_ABERTURA;   // Modo de entrada
+input ENUM_MODO_ENTRADA    InpModoEntrada   = ENTRADA_RETORNO;    // Modo de entrada
 input double               InpRecuo         = 10.0;               // Modo retorno: recuo mínimo antes de entrar
 input ENUM_UNIDADE_RECUO   InpUnidadeRecuo  = RECUO_PCT_CANDLE;   // Modo retorno: unidade do recuo
 input bool                 InpEntrarNoRecuo = false;              // Modo retorno: entrar limitado no ponto do recuo (sem esperar voltar)
@@ -80,7 +80,7 @@ input bool                 InpRegistrarDecisoes = false;          // Escrever no
 input bool                 InpGravarCSV     = false;              // Gravar as operações em CSV (pasta Common/Files)
 
 input group "Reentrada"
-input int                  InpMaxReentradas = 0;                  // Reentradas por sinal depois de sair no 0x0 (0 = desligado)
+input int                  InpMaxReentradas = 1;                  // Reentradas por sinal depois de sair no 0x0 (0 = desligado)
 input int                  InpReentradaMin  = 5;                  // Minutos para o preço voltar à entrada
 
 CTrade   trade;
@@ -183,7 +183,7 @@ int OnInit()
       g_parcialFeita = true;
 
    AbrirArquivo();
-   Print("CohenScalper v1.15 carregado");
+   Print("CohenScalper v1.16 carregado");
    return INIT_SUCCEEDED;
   }
 
