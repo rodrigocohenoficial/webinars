@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.10"
+#property version   "1.11"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -78,6 +78,10 @@ input int                  InpMaxOperacoes  = 0;                  // Máximo de 
 input ulong                InpMagic         = 2026100;            // Número mágico
 input bool                 InpRegistrarDecisoes = true;           // Escrever no Diário o motivo de cada candle
 
+input group "Reentrada"
+input int                  InpMaxReentradas = 0;                  // Reentradas por sinal depois de sair no 0x0 (0 = desligado)
+input int                  InpReentradaMin  = 5;                  // Minutos para o preço voltar à entrada
+
 CTrade   trade;
 datetime g_ultimoCandle  = 0;
 double   g_stopPlanejado = 0;     // stop da entrada em andamento, aplicado assim que a posição abre
@@ -107,6 +111,16 @@ int      g_arquivo       = INVALID_HANDLE;
 string   g_nomeArquivo   = "";
 int      g_totalOps = 0, g_ganhos = 0, g_perdas = 0, g_zeros = 0;
 double   g_totalPts = 0, g_ptsGanhos = 0, g_ptsPerdas = 0, g_pico = 0, g_maxDD = 0;
+
+// Reentrada: saiu no 0x0 depois da parcial e o preço voltou à entrada -> entra de novo,
+// mesmo sinal, mesmo stop, mesma parcial e mesmo alvo.
+int      g_reDir         = 0;
+double   g_rePreco       = 0;
+double   g_reStop        = 0;
+datetime g_reAte         = 0;
+int      g_reRestantes   = 0;
+bool     g_entradaReentrada = false;   // a próxima posição é uma reentrada
+bool     g_posReentrada  = false;      // a posição acompanhada é uma reentrada
 
 //+------------------------------------------------------------------+
 int OnInit()
@@ -164,7 +178,7 @@ int OnInit()
       g_parcialFeita = true;
 
    AbrirArquivo();
-   Print("CohenScalper v1.10 carregado");
+   Print("CohenScalper v1.11 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -236,7 +250,9 @@ void OnTick()
      {
       CancelarPendentes();
       g_retornoDir = 0;
+      g_reDir = 0;
      }
+   MonitorarReentrada(minutoAgora);
 
    datetime abertura = iTime(_Symbol, InpTimeframe, 0);
    if(abertura == 0)
@@ -251,6 +267,66 @@ void OnTick()
      }
 
    MonitorarRetorno();
+  }
+
+//+------------------------------------------------------------------+
+//| Reentrada no preço da entrada original depois de sair no 0x0     |
+//+------------------------------------------------------------------+
+void MonitorarReentrada(int minutoAgora)
+  {
+   if(g_reDir == 0)
+      return;
+
+   ulong t; long tipo; double vol, preco, sl, tp;
+   if(BuscarPosicao(t, tipo, vol, preco, sl, tp))
+     {
+      g_reDir = 0;   // já está posicionado (sinal novo ou a própria reentrada)
+      return;
+     }
+
+   double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   bool perdeuSinal = (g_reDir > 0) ? bid <= g_reStop : ask >= g_reStop;
+   if(TimeCurrent() > g_reAte || perdeuSinal || minutoAgora > g_minUltima || minutoAgora >= g_minZerar)
+     {
+      g_reDir = 0;
+      return;
+     }
+
+   bool voltou = (g_reDir > 0) ? ask <= g_rePreco : bid >= g_rePreco;
+   if(!voltou)
+      return;
+
+   double pontosDia;
+   int    operacoes;
+   ResultadoDoDia(pontosDia, operacoes);
+   if((InpMetaDiaPts > 0 && pontosDia >= InpMetaDiaPts) ||
+      (InpLossDiaPts > 0 && pontosDia <= -InpLossDiaPts) ||
+      (InpMaxOperacoes > 0 && operacoes >= InpMaxOperacoes))
+     {
+      g_reDir = 0;
+      return;
+     }
+
+   int direcao = g_reDir;
+   g_reDir = 0;
+   g_reRestantes--;
+   g_stopPlanejado    = g_reStop;
+   g_precoReferencia  = (direcao > 0) ? ask : bid;
+   g_parcialFeita     = false;
+   g_avisouSemStop    = false;
+   g_falhasStop       = 0;
+   g_entradaReentrada = true;
+
+   Registrar(iTime(_Symbol, InpTimeframe, 0),
+             StringFormat("REENTRADA %s em %.0f (voltou à entrada depois do 0x0, restam %d)",
+                          direcao > 0 ? "compra" : "venda", g_rePreco, g_reRestantes));
+   double volume = AjustarVolume(InpContratos);
+   if(direcao > 0)
+      trade.Buy(volume, _Symbol, 0, 0, 0, "reentrada");
+   else
+      trade.Sell(volume, _Symbol, 0, 0, 0, "reentrada");
+   GerenciarPosicao(minutoAgora);
   }
 
 //+------------------------------------------------------------------+
@@ -465,6 +541,9 @@ void Entrar(int direcao)
    g_parcialFeita  = false;
    g_avisouSemStop = false;
    g_falhasStop    = 0;
+   g_reDir         = 0;                  // sinal novo: zera a reentrada do anterior
+   g_reRestantes   = InpMaxReentradas;
+   g_entradaReentrada = false;
 
    if(InpModoEntrada == ENTRADA_ABERTURA)
      {
@@ -628,6 +707,8 @@ void GerenciarPosicao(int minutoAgora)
             RegistrarOperacao(g_posId);
          g_posId = id;
          g_posStop = g_stopPlanejado;
+         g_posReentrada = g_entradaReentrada;
+         g_entradaReentrada = false;
          g_mfe = 0;
          g_mae = 0;
          g_motivoSaida = "";
@@ -829,6 +910,14 @@ void RegistrarOperacao(long id)
    string motivo = (g_motivoSaida == "") ? "servidor" : g_motivoSaida;
    g_motivoSaida = "";
 
+   if(motivo == "0x0" && g_reRestantes > 0 && g_posStop > 0)
+     {
+      g_reDir   = dir;
+      g_rePreco = ArredondarPreco(entrada);
+      g_reStop  = g_posStop;
+      g_reAte   = TimeCurrent() + InpReentradaMin * 60;
+     }
+
    g_totalOps++;
    g_totalPts += pts;
    if(pts > 0)      { g_ganhos++; g_ptsGanhos += pts; }
@@ -848,7 +937,7 @@ void RegistrarOperacao(long id)
              DoubleToString(pts, 1), DoubleToString(g_mfe, _Digits), DoubleToString(g_mae, _Digits),
              DoubleToString(g_sinalTamanho, _Digits), DoubleToString(g_sinalCorpo, 0),
              g_sinalTendencia > 0 ? "alta" : g_sinalTendencia < 0 ? "baixa" : "sem",
-             DescreverEntrada());
+             DescreverEntrada() + (g_posReentrada ? "_reentrada" : ""));
    FileFlush(g_arquivo);
   }
 
