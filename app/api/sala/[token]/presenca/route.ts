@@ -1,15 +1,12 @@
 import { db } from "@/lib/db";
-import { grampearSegundo } from "@/lib/sala";
+import { registrarPresenca } from "@/lib/presenca";
 
 export const dynamic = "force-dynamic";
 
 /**
- * A batida de presenca. Grava lastSeenAt e o ponto mais avancado alcancado —
- * so o maximo, nunca cada batida. E o suficiente para a curva inteira e
- * evita uma tabela de eventos que cresce sem limite.
- *
- * Regra 5.2 tambem aqui: o segundo enviado e grampeado contra o ponto que a
- * sessao realmente alcancou, senao uma aba adiantada infla a retencao.
+ * A batida de presenca avulsa. Durante a sessao ela viaja na consulta do chat
+ * (lib/presenca.ts); esta rota fica para o beacon de quando a pessoa fecha ou
+ * esconde a aba, que precisa sair mesmo com a pagina indo embora.
  */
 export async function POST(req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
@@ -34,21 +31,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
   });
   if (!inscricao) return new Response(null, { status: 404 });
 
-  const agora = new Date();
-  const ponto = grampearSegundo(sec, {
-    inicioMs: inscricao.session.startsAt.getTime(),
-    agoraMs: agora.getTime(),
-    durationSec: inscricao.session.webinar.durationSec,
-  });
-
-  await db.registration.update({
-    where: { id: inscricao.id },
-    data: {
-      lastSeenAt: agora,
-      firstSeenAt: inscricao.firstSeenAt ?? agora,
-      watchedUntilSec: Math.max(inscricao.watchedUntilSec, ponto),
-    },
-  });
+  await registrarPresenca(inscricao, sec);
 
   return new Response(null, { status: 204 });
 }

@@ -6,7 +6,7 @@
  * pior do que estar errado em todos.
  */
 
-/** Presenca e sinal recente, nao inscricao: o dobro da batida de 30s, mais folga. */
+/** Presenca e sinal recente, nao inscricao. A batida vem com a consulta do chat (10s); a janela tolera varias perdidas. */
 export const JANELA_PRESENCA_MS = 75000;
 
 export const PONTOS_CURVA = 40;

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { grampearSegundo } from "@/lib/sala";
 import { JANELA_PRESENCA_MS } from "@/lib/metricas";
+import { registrarPresenca } from "@/lib/presenca";
 import { normalizarTexto } from "@/lib/texto";
 
 export const dynamic = "force-dynamic";
@@ -21,10 +22,15 @@ async function carregar(token: string) {
  * sustenta. Enquete e oferta viajam junto daqui (etapas 8 e 12) — cada dado
  * com endpoint proprio triplica a carga sem ganhar nada.
  */
-export async function GET(_req: Request, ctx: { params: Promise<{ token: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
   const inscricao = await carregar(token);
   if (!inscricao) return Response.json({ mensagens: [] }, { status: 404 });
+
+  // A batida de presenca viaja nesta consulta: uma invocacao por ciclo em
+  // vez de duas. Vai antes da contagem de audiencia para a pessoa se contar.
+  const sec = new URL(req.url).searchParams.get("sec");
+  if (sec !== null) await registrarPresenca(inscricao, sec);
 
   const { session } = inscricao;
   const w = session.webinar;

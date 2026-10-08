@@ -72,7 +72,7 @@ conferir(/Participante Teste/.test(audiencia), "a lista traz o nome de quem est�
 conferir(/\d+:\d\d/.test(audiencia), "a lista traz em que minuto do vídeo cada um está");
 
 // ── vê o chat inteiro mesmo com chat ao vivo desligado ──────────────────
-// a consulta do chat é de 6 em 6 segundos: esperamos ela, não o instante
+// a consulta do chat é de 10 em 10 segundos: esperamos ela, não o instante
 await painel.waitForSelector("text=respondeu minha duvida", { timeout: 25000 });
 conferir(true, "o apresentador vê o comentário aguardando, mesmo com o chat ao vivo desligado");
 await painel.waitForSelector("text=Liberar para a sala", { timeout: 15000 });

@@ -16,8 +16,13 @@ export type Mensagem = {
   falhou?: boolean;
 };
 
-/** De quanto em quanto tempo a sala pergunta o que ha de novo nesta sessao. */
-const INTERVALO_CONSULTA_MS = 6000;
+/**
+ * De quanto em quanto tempo a sala pergunta o que ha de novo nesta sessao.
+ * A batida de presenca viaja junto, entao isto tambem sustenta o "assistindo
+ * agora" (janela de 75s). Cada consulta e uma invocacao de funcao por pessoa:
+ * 10s em vez de 6s corta 40% da carga sem a conversa parecer atrasada.
+ */
+const INTERVALO_CONSULTA_MS = 10000;
 
 /**
  * O feed e a uniao de tres fontes, deduplicada por id:
@@ -134,15 +139,20 @@ export default function Chat({
     return () => clearInterval(t);
   }, []);
 
+  const posicaoRef = useRef(posicaoAlvo);
+  posicaoRef.current = posicaoAlvo;
+
   // Fonte 2: consulta periodica. Sem conexao persistente: em serverless a
-  // funcao tem tempo de execucao limitado e SSE nao se sustenta.
+  // funcao tem tempo de execucao limitado e SSE nao se sustenta. Leva junto o
+  // segundo do video, que e a batida de presenca desta pessoa.
   useEffect(() => {
     if (somenteLeitura) return;
     let vivo = true;
     const consultar = async () => {
       if (document.visibilityState !== "visible") return;
       try {
-        const r = await fetch(`/api/sala/${token}/chat`, { cache: "no-store" });
+        const sec = Math.max(0, Math.floor(posicaoRef.current()));
+        const r = await fetch(`/api/sala/${token}/chat?sec=${sec}`, { cache: "no-store" });
         if (!r.ok) return;
         const d = (await r.json()) as {
           mensagens?: Mensagem[];
@@ -157,7 +167,7 @@ export default function Chat({
         aoSaberAudiencia?.(d.assistindo ?? null);
         if (d.reacoes) aoSaberReacoes?.(d.reacoes);
       } catch {
-        // uma consulta perdida nao quebra nada: a proxima vem em 6 segundos
+        // uma consulta perdida nao quebra nada: a proxima vem em 10 segundos
       }
     };
     void consultar();
