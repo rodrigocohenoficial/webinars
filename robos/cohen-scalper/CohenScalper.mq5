@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.07"
+#property version   "1.08"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -92,6 +92,20 @@ double   g_tick          = 0;
 int      g_minInicio, g_minUltima, g_minZerar, g_minTendencia;
 int      g_bloqueados[];
 
+// Livro próprio de operações, em pontos pelo preço executado. No WIN$N o testador
+// executa as ordens mas não calcula o lucro em R$ (fica tudo 0,00).
+long     g_posId         = 0;     // posição acompanhada
+double   g_posStop       = 0;     // stop inicial dela
+double   g_mfe           = 0;     // maior lucro a favor durante a operação (pontos)
+double   g_mae           = 0;     // maior recuo contra durante a operação (pontos)
+string   g_motivoSaida   = "";
+double   g_sinalTamanho  = 0, g_sinalCorpo = 0;
+int      g_sinalTendencia = 0;
+int      g_arquivo       = INVALID_HANDLE;
+string   g_nomeArquivo   = "";
+int      g_totalOps = 0, g_ganhos = 0, g_perdas = 0, g_zeros = 0;
+double   g_totalPts = 0, g_ptsGanhos = 0, g_ptsPerdas = 0, g_pico = 0, g_maxDD = 0;
+
 //+------------------------------------------------------------------+
 int OnInit()
   {
@@ -147,8 +161,67 @@ int OnInit()
    if(BuscarPosicao(t, tipo, vol, preco, sl, tp) && vol < AjustarVolume(InpContratos))
       g_parcialFeita = true;
 
-   Print("CohenScalper v1.07 carregado");
+   AbrirArquivo();
+   Print("CohenScalper v1.08 carregado");
    return INIT_SUCCEEDED;
+  }
+
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+  {
+   if(g_arquivo != INVALID_HANDLE)
+      FileClose(g_arquivo);
+   if(g_totalOps == 0)
+      return;
+
+   double fator = (g_ptsPerdas < 0) ? g_ptsGanhos / -g_ptsPerdas : 0;
+   PrintFormat("RESUMO (pontos pelo preço médio, sem custos): %d operações | total %.0f pts | média %.1f pts | " +
+               "ganhos %d, perdas %d, zeradas %d | fator de lucro %.2f | drawdown máximo %.0f pts",
+               g_totalOps, g_totalPts, g_totalPts / g_totalOps, g_ganhos, g_perdas, g_zeros, fator, g_maxDD);
+   double reaisPorPonto = ReaisPorPonto();
+   if(reaisPorPonto > 0)
+      PrintFormat("Em R$ com %.0f contratos: resultado %.2f | drawdown máximo %.2f (sem emolumentos)",
+                  InpContratos, g_totalPts * reaisPorPonto * InpContratos, g_maxDD * reaisPorPonto * InpContratos);
+   if(g_nomeArquivo != "")
+      PrintFormat("Operações salvas em %s\\Files\\%s", TerminalInfoString(TERMINAL_COMMONDATA_PATH), g_nomeArquivo);
+  }
+
+// Critério para a otimização ("Máximo personalizado"): total de pontos.
+double OnTester()
+  {
+   return g_totalPts;
+  }
+
+// Valor do ponto por contrato. No WIN$N o MT5 informa zero, então vai pela tabela da B3.
+double ReaisPorPonto()
+  {
+   if(StringFind(_Symbol, "WIN") == 0) return 0.20;
+   if(StringFind(_Symbol, "WDO") == 0) return 10.00;
+   if(StringFind(_Symbol, "IND") == 0) return 1.00;
+   if(StringFind(_Symbol, "DOL") == 0) return 50.00;
+   return 0;
+  }
+
+// Uma linha por operação. No testador recria o arquivo; em conta real acrescenta.
+void AbrirArquivo()
+  {
+   if(MQLInfoInteger(MQL_OPTIMIZATION))
+      return;
+   bool testador = (bool)MQLInfoInteger(MQL_TESTER);
+   g_nomeArquivo = "CohenScalper_" + _Symbol + (testador ? "_teste" : "") + ".csv";
+   int modo = FILE_CSV | FILE_ANSI | FILE_COMMON | FILE_WRITE | (testador ? 0 : FILE_READ);
+   g_arquivo = FileOpen(g_nomeArquivo, modo, ';');
+   if(g_arquivo == INVALID_HANDLE)
+     {
+      PrintFormat("Não consegui criar o arquivo de operações (erro %d)", GetLastError());
+      g_nomeArquivo = "";
+      return;
+     }
+   if(FileSize(g_arquivo) == 0)
+      FileWrite(g_arquivo, "data", "hora_entrada", "hora_saida", "direcao", "entrada", "stop_inicial", "risco_pts",
+                "parcial", "saida_final", "motivo", "pontos_medios", "mfe_pts", "mae_pts",
+                "tamanho_sinal", "corpo_pct", "tendencia", "modo_entrada");
+   FileSeek(g_arquivo, 0, SEEK_END);
   }
 
 //+------------------------------------------------------------------+
@@ -252,6 +325,10 @@ void NovoCandle(datetime abertura)
      }
 
    Registrar(abertura, motivo + StringFormat(" | dia: %.0f pts", pontosDia));
+   double h1 = iHigh(_Symbol, InpTimeframe, 1), l1 = iLow(_Symbol, InpTimeframe, 1);
+   g_sinalTamanho   = h1 - l1;
+   g_sinalCorpo     = (h1 > l1) ? MathAbs(iClose(_Symbol, InpTimeframe, 1) - iOpen(_Symbol, InpTimeframe, 1)) * 100.0 / (h1 - l1) : 0;
+   g_sinalTendencia = Tendencia();   // registrada mesmo com o filtro desligado, para a análise
    Entrar(direcao);
    GerenciarPosicao(MinutoDoDia(TimeCurrent()));   // coloca stop e alvo sem esperar o próximo tick
   }
@@ -476,18 +553,43 @@ void GerenciarPosicao(int minutoAgora)
    ulong ticket; long tipo; double volume, preco, sl, tp;
    if(!BuscarPosicao(ticket, tipo, volume, preco, sl, tp))
      {
+      if(g_posId != 0)
+         RegistrarOperacao(g_posId);   // a posição acabou de fechar
+      g_posId = 0;
       g_parcialFeita = false;
-      return;
-     }
-
-   if(minutoAgora >= g_minZerar)
-     {
-      trade.PositionClose(ticket);
       return;
      }
 
    double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+
+   if(PositionSelectByTicket(ticket))
+     {
+      long id = PositionGetInteger(POSITION_IDENTIFIER);
+      if(id != g_posId)
+        {
+         if(g_posId != 0)
+            RegistrarOperacao(g_posId);
+         g_posId = id;
+         g_posStop = g_stopPlanejado;
+         g_mfe = 0;
+         g_mae = 0;
+         g_motivoSaida = "";
+        }
+     }
+   if(preco > 0)
+     {
+      double aFavor = (tipo == POSITION_TYPE_BUY) ? bid - preco : preco - ask;
+      g_mfe = MathMax(g_mfe, aFavor);
+      g_mae = MathMax(g_mae, -aFavor);
+     }
+
+   if(minutoAgora >= g_minZerar)
+     {
+      g_motivoSaida = "zerar";
+      trade.PositionClose(ticket);
+      return;
+     }
 
    // Stop e alvo entram logo após a execução, a partir do preço executado.
    if(sl == 0 && tp == 0)
@@ -502,6 +604,7 @@ void GerenciarPosicao(int minutoAgora)
       if((tipo == POSITION_TYPE_BUY && bid <= g_stopPlanejado) ||
          (tipo == POSITION_TYPE_SELL && ask >= g_stopPlanejado))
         {
+         g_motivoSaida = "stop";
          trade.PositionClose(ticket);   // executou além do stop
          return;
         }
@@ -512,6 +615,7 @@ void GerenciarPosicao(int minutoAgora)
         {
          // Posição sem stop não fica aberta.
          PrintFormat("Não consegui colocar stop e alvo (preço de entrada %.2f). Zerando por segurança.", preco);
+         g_motivoSaida = "seguranca";
          trade.PositionClose(ticket);
         }
       return;
@@ -524,8 +628,10 @@ void GerenciarPosicao(int minutoAgora)
    bool bateuAlvo = tp > 0 && ((tipo == POSITION_TYPE_BUY) ? bid >= tp : ask <= tp);
    if((sl > 0 && bateuStop) || bateuAlvo)
      {
-      PrintFormat("Saída pelo robô: %s (bid %.0f / ask %.0f, stop %.0f, alvo %.0f)",
-                  bateuAlvo ? "alvo" : "stop", bid, ask, sl, tp);
+      g_motivoSaida = bateuAlvo ? "alvo" : (MathAbs(sl - preco) < g_tick / 2 ? "0x0" : "stop");
+      if(InpRegistrarDecisoes)
+         PrintFormat("Saída pelo robô: %s (bid %.0f / ask %.0f, stop %.0f, alvo %.0f)",
+                     g_motivoSaida, bid, ask, sl, tp);
       trade.PositionClose(ticket);
       return;
      }
@@ -560,7 +666,8 @@ bool FecharParcial(ulong ticket, long tipo, double vol)
   }
 
 //+------------------------------------------------------------------+
-//| Resultado do dia em pontos, só das posições abertas pelo robô    |
+//| Resultado do dia em pontos, só das posições abertas pelo robô.   |
+//| Calculado pelos preços executados: no WIN$N o MT5 zera o lucro.  |
 //+------------------------------------------------------------------+
 void ResultadoDoDia(double &pontos, int &operacoes)
   {
@@ -576,39 +683,111 @@ void ResultadoDoDia(double &pontos, int &operacoes)
       ulong deal = HistoryDealGetTicket(i);
       if(deal == 0 || HistoryDealGetString(deal, DEAL_SYMBOL) != _Symbol)
          continue;
-      if(HistoryDealGetInteger(deal, DEAL_ENTRY) == DEAL_ENTRY_IN &&
-         (ulong)HistoryDealGetInteger(deal, DEAL_MAGIC) == InpMagic)
+      if(HistoryDealGetInteger(deal, DEAL_ENTRY) != DEAL_ENTRY_IN ||
+         (ulong)HistoryDealGetInteger(deal, DEAL_MAGIC) != InpMagic)
+         continue;
+      long id = HistoryDealGetInteger(deal, DEAL_POSITION_ID);
+      bool repetido = false;
+      for(int k = 0; k < ArraySize(ids) && !repetido; k++)
+         repetido = (ids[k] == id);
+      if(!repetido)
         {
          int n = ArraySize(ids);
          ArrayResize(ids, n + 1);
-         ids[n] = HistoryDealGetInteger(deal, DEAL_POSITION_ID);
-         operacoes++;
+         ids[n] = id;
         }
      }
+   operacoes = ArraySize(ids);
 
-   // R$ por ponto por contrato (WIN: 0,20 / WDO: 10,00)
-   double valorPonto = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE) / g_tick;
-   if(valorPonto <= 0)
-      return;
+   for(int k = 0; k < operacoes; k++)
+     {
+      double pts, entrada, parcial, saida;
+      datetime tEntrada, tSaida;
+      int dir;
+      if(DadosDaPosicao(ids[k], pts, tEntrada, tSaida, dir, entrada, parcial, saida))
+         pontos += pts;
+     }
+  }
 
-   for(int i = 0; i < total; i++)
+// Resultado de uma posição pelo preço médio: parcial de 40 + final de 180 = 110.
+// Só conta o que já saiu; parte ainda aberta não entra.
+bool DadosDaPosicao(long id, double &pontos, datetime &tEntrada, datetime &tSaida, int &dir,
+                    double &entrada, double &parcial, double &saida)
+  {
+   pontos = 0; tEntrada = 0; tSaida = 0; dir = 0; entrada = 0; parcial = 0; saida = 0;
+   if(!HistorySelectByPosition(id))
+      return false;
+
+   double volEntrada = 0, valorEntrada = 0, volSaida = 0, valorSaida = 0;
+   int    saidas = 0;
+   for(int i = 0; i < HistoryDealsTotal(); i++)
      {
       ulong deal = HistoryDealGetTicket(i);
-      if(deal == 0 || HistoryDealGetString(deal, DEAL_SYMBOL) != _Symbol)
+      if(deal == 0)
          continue;
+      double p = HistoryDealGetDouble(deal, DEAL_PRICE);
+      double v = HistoryDealGetDouble(deal, DEAL_VOLUME);
       if(HistoryDealGetInteger(deal, DEAL_ENTRY) == DEAL_ENTRY_IN)
-         continue;
-      long id = HistoryDealGetInteger(deal, DEAL_POSITION_ID);
-      for(int k = 0; k < ArraySize(ids); k++)
-         if(ids[k] == id)
-           {
-            pontos += HistoryDealGetDouble(deal, DEAL_PROFIT) / valorPonto;
-            break;
-           }
+        {
+         volEntrada   += v;
+         valorEntrada += p * v;
+         dir = (HistoryDealGetInteger(deal, DEAL_TYPE) == DEAL_TYPE_BUY) ? 1 : -1;
+         if(tEntrada == 0)
+            tEntrada = (datetime)HistoryDealGetInteger(deal, DEAL_TIME);
+        }
+      else
+        {
+         volSaida   += v;
+         valorSaida += p * v;
+         if(saidas == 0)
+            parcial = p;
+         saida  = p;
+         tSaida = (datetime)HistoryDealGetInteger(deal, DEAL_TIME);
+         saidas++;
+        }
      }
+   if(volEntrada <= 0)
+      return false;
+   if(saidas < 2)
+      parcial = 0;
+   entrada = valorEntrada / volEntrada;
+   pontos  = (valorSaida - entrada * volSaida) * dir / volEntrada;
+   return true;
+  }
 
-   // Pontos pelo preço médio: parcial de 40 + final de 180 = 110.
-   pontos /= AjustarVolume(InpContratos);
+// Fecha a conta da operação: estatística do teste e uma linha no arquivo.
+void RegistrarOperacao(long id)
+  {
+   double pts, entrada, parcial, saida;
+   datetime tEntrada, tSaida;
+   int dir;
+   if(!DadosDaPosicao(id, pts, tEntrada, tSaida, dir, entrada, parcial, saida) || tSaida == 0)
+      return;
+
+   string motivo = (g_motivoSaida == "") ? "servidor" : g_motivoSaida;
+   g_motivoSaida = "";
+
+   g_totalOps++;
+   g_totalPts += pts;
+   if(pts > 0)      { g_ganhos++; g_ptsGanhos += pts; }
+   else if(pts < 0) { g_perdas++; g_ptsPerdas += pts; }
+   else             g_zeros++;
+   g_pico  = MathMax(g_pico, g_totalPts);
+   g_maxDD = MathMax(g_maxDD, g_pico - g_totalPts);
+
+   if(g_arquivo == INVALID_HANDLE)
+      return;
+   FileWrite(g_arquivo,
+             TimeToString(tEntrada, TIME_DATE), TimeToString(tEntrada, TIME_SECONDS), TimeToString(tSaida, TIME_SECONDS),
+             dir > 0 ? "compra" : "venda",
+             DoubleToString(entrada, _Digits), DoubleToString(g_posStop, _Digits),
+             DoubleToString(MathAbs(entrada - g_posStop), _Digits),
+             DoubleToString(parcial, _Digits), DoubleToString(saida, _Digits), motivo,
+             DoubleToString(pts, 1), DoubleToString(g_mfe, _Digits), DoubleToString(g_mae, _Digits),
+             DoubleToString(g_sinalTamanho, _Digits), DoubleToString(g_sinalCorpo, 0),
+             g_sinalTendencia > 0 ? "alta" : g_sinalTendencia < 0 ? "baixa" : "sem",
+             InpModoEntrada == ENTRADA_ABERTURA ? "abertura" : "retorno");
+   FileFlush(g_arquivo);
   }
 
 //+------------------------------------------------------------------+
