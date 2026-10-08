@@ -38,6 +38,8 @@ O que cada um prova:
 
 | `oferta-no-fim.mjs` | a oferta reaparece na tela de encerramento · o clique conta, grampeado pela duração · desligada no painel não aparece · e ligá-la não antecipa a oferta durante a sessão |
 
+| `apoio.mjs` | WhatsApp do time e material para baixar · número que não dá para confiar volta como erro sem apagar o formulário · contato em toda fase · material só a partir do minuto marcado · PDF servido pelo sistema · nada desliza de lado no celular |
+
 | `reacoes.mjs` | os quatro símbolos e só eles · 5.2 no segundo da reação · sobe e some sozinha · reação de uma sessão reaparece no minuto dela na seguinte · quem entra no meio não leva o histórico na cara |
 
 | `celular.mjs` | em 390px e 360px: a página não desliza de lado, o título não encosta na borda, a barra de reações fica abaixo do vídeo, o campo de escrever cabe |

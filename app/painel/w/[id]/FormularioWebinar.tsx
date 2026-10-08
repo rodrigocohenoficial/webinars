@@ -3,6 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import { detectarVideo, salvarWebinar, type EstadoForm, type InfoVideo } from "../../acoes";
 import { formatMinutoSegundo } from "@/lib/time";
+import { MATERIAL_PADRAO } from "@/lib/apoio";
 
 export type WebinarForm = {
   id: string;
@@ -31,6 +32,11 @@ export type WebinarForm = {
   ctaAtSec: string;
   ctaUntilSec: string;
   ctaNoFim: boolean;
+  suporteNome: string;
+  suporteWhatsapp: string;
+  materialLabel: string;
+  materialUrl: string;
+  materialAtSec: string;
 };
 
 function Secao({ titulo, ajuda, children }: { titulo: string; ajuda?: string; children: React.ReactNode }) {
@@ -416,6 +422,91 @@ export default function FormularioWebinar({ inicial }: { inicial: WebinarForm })
             titulo="Repetir a oferta na tela de encerramento"
             ajuda="Quem ficou ate o fim e o lead mais quente da sessao. Desligue so se a oferta tiver escassez de minuto."
           />
+        </div>
+      </Secao>
+
+      <Secao
+        titulo="Apoio na sala"
+        ajuda="Fica fixo embaixo do video. Deixe vazio o que nao quiser mostrar."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="rotulo" htmlFor="suporteNome">Nome de quem atende</label>
+            <input
+              id="suporteNome"
+              name="suporteNome"
+              className="campo"
+              placeholder="Elaine"
+              value={f.suporteNome}
+              onChange={(e) => set("suporteNome", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="rotulo" htmlFor="suporteWhatsapp">WhatsApp</label>
+            <input
+              id="suporteWhatsapp"
+              name="suporteWhatsapp"
+              className="campo"
+              inputMode="tel"
+              placeholder="(11) 98765-4321"
+              value={f.suporteWhatsapp}
+              onChange={(e) => set("suporteWhatsapp", e.target.value)}
+            />
+            <p className="ajuda">O botao abre a conversa ja dizendo de qual webinario a pessoa veio.</p>
+          </div>
+        </div>
+        <div className="space-y-4 border-t border-[var(--borda)] pt-4">
+          <div>
+            <label className="rotulo" htmlFor="materialUrl">Arquivo para baixar (link)</label>
+            <div className="flex gap-2">
+              <input
+                id="materialUrl"
+                name="materialUrl"
+                className="campo"
+                placeholder="https://... ou /materiais/arquivo.pdf"
+                value={f.materialUrl}
+                onChange={(e) => set("materialUrl", e.target.value)}
+              />
+              <button
+                type="button"
+                className="botao-fantasma shrink-0"
+                onClick={() =>
+                  setF((atual) => ({
+                    ...atual,
+                    materialUrl: MATERIAL_PADRAO.url,
+                    materialLabel: atual.materialLabel || MATERIAL_PADRAO.label,
+                  }))
+                }
+              >
+                Usar o Plano de 1 Pagina
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="rotulo" htmlFor="materialLabel">Texto do botao</label>
+              <input
+                id="materialLabel"
+                name="materialLabel"
+                className="campo"
+                placeholder="Baixar o material da aula"
+                value={f.materialLabel}
+                onChange={(e) => set("materialLabel", e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="rotulo" htmlFor="materialAtSec">Aparece em</label>
+              <input
+                id="materialAtSec"
+                name="materialAtSec"
+                className="campo"
+                placeholder="deixe vazio para aparecer desde o inicio"
+                value={f.materialAtSec}
+                onChange={(e) => set("materialAtSec", e.target.value)}
+              />
+              <p className="ajuda">Marque o minuto em que voce ensina o material, se quiser segurar ate la.</p>
+            </div>
+          </div>
         </div>
       </Secao>
 

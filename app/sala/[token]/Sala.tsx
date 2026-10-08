@@ -14,6 +14,8 @@ import Audiencia from "./Audiencia";
 import type { EnqueteDaSala } from "@/lib/enquetes";
 import type { ReacaoNaSala } from "@/lib/reacoes";
 import Reacoes from "./Reacoes";
+import Apoio from "./Apoio";
+import type { ApoioDaSala } from "@/lib/apoio";
 
 export type DadosSala = {
   token: string;
@@ -38,6 +40,8 @@ export type DadosSala = {
   enquetes: EnqueteDaSala[];
   /** reacoes de sessoes anteriores, presas ao segundo do video */
   reacoes: ReacaoNaSala[];
+  /** contato do time e material para baixar */
+  apoio: ApoioDaSala;
   /** voce entrando na propria sala: mesma tela, com duas coisas a mais */
   ehApresentador: boolean;
   /**
@@ -216,6 +220,10 @@ function Tela({
           <p className="mt-9 max-w-sm text-[14px] leading-relaxed text-[var(--texto-2)]">
             Deixe esta pagina aberta. Na hora marcada ela comeca sozinha — voce nao precisa fazer nada.
           </p>
+
+          <div className="w-full max-w-sm">
+            <Apoio apoio={dados.apoio} />
+          </div>
         </main>
       </div>
     );
@@ -230,6 +238,7 @@ function Tela({
             A entrada desta sessao ja fechou. Escolha outro horario — leva um clique.
           </p>
           <ProximosHorarios token={dados.token} />
+          <Apoio apoio={dados.apoio} />
         </div>
       </Moldura>
     );
@@ -255,6 +264,8 @@ function Tela({
               sempre
             />
           ) : null}
+
+          <Apoio apoio={dados.apoio} sempre />
 
           <ProximosHorarios token={dados.token} />
         </div>
@@ -307,6 +318,7 @@ function Tela({
               previa={dados.previa}
             />
           ) : null}
+          <Apoio apoio={dados.apoio} posicaoAlvo={posicaoAlvo} />
         </div>
         {/*
           A altura da linha tem que vir do player, nunca do chat. Por isso o

@@ -81,6 +81,17 @@ model Webinar {
   /// lead mais quente que a sessao produz, e a oferta some junto com o video
   ctaNoFim       Boolean @default(true)
 
+  /// contato fixo do time na sala: quem trava, chama alguem de verdade
+  suporteNome     String?
+  /// so digitos, com DDI: 5511987654321
+  suporteWhatsapp String?
+
+  /// arquivo que a pessoa baixa na sala (o material da aula)
+  materialLabel String?
+  materialUrl   String?
+  /// a partir de que ponto do video o botao aparece (vazio = sempre)
+  materialAtSec Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
