@@ -1,4 +1,4 @@
-# CohenScalper (MQL5) — v1.16
+# CohenScalper (MQL5) — v1.17
 
 Scalper de price action. Sem indicadores. Uso próprio em backtest e demo antes de qualquer versão para alunos (depois porta para NTSL).
 
@@ -93,7 +93,7 @@ A mesma configuração ficou em 1º lugar nos dois períodos. Tamanho máximo de
 | Bloquear horários | não | Liga o bloqueio da linha abaixo |
 | Horários sem entrada | 09:30,10:00,10:30,11:00,11:30 | Separados por vírgula |
 | Margem | 5 min | Antes e depois de cada horário |
-| Última entrada | 13:00 | Teste outros horários |
+| Última entrada | 1300 | HHMM, otimizável (ex.: 1300 a 1700) |
 | Contratos | 2 | Sempre par |
 | Meta do dia | 500 pts | Preço médio. 0 desliga |
 | Loss do dia | 500 pts | Preço médio. 0 desliga |

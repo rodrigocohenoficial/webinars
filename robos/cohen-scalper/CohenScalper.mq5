@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.16"
+#property version   "1.17"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -64,7 +64,7 @@ input double               InpAlvoPts         = 180;              // Alvo final 
 
 input group "Horários"
 input string               InpInicio        = "09:15";            // Início das entradas
-input string               InpUltimaEntrada = "13:00";            // Última entrada
+input int                  InpUltimaEntrada = 1300;               // Última entrada (HHMM, ex.: 1300 = 13:00; otimizável)
 input string               InpZerar         = "17:30";            // Zera posição
 input bool                 InpBloquearHorarios = false;           // Não entrar nos horários abaixo
 input string               InpHorariosBloq  = "09:30,10:00,10:30,11:00,11:30"; // Horários sem entrada
@@ -138,7 +138,8 @@ int OnInit()
      }
 
    g_minInicio = ParseHora(InpInicio);
-   g_minUltima = ParseHora(InpUltimaEntrada);
+   g_minUltima = (InpUltimaEntrada / 100 <= 23 && InpUltimaEntrada % 100 <= 59 && InpUltimaEntrada >= 0)
+                 ? (InpUltimaEntrada / 100) * 60 + InpUltimaEntrada % 100 : -1;
    g_minZerar  = ParseHora(InpZerar);
    g_minTendencia = ParseHora(InpHorarioTendencia);
    if(g_minInicio < 0 || g_minUltima < 0 || g_minZerar < 0 || g_minTendencia < 0)
@@ -183,7 +184,7 @@ int OnInit()
       g_parcialFeita = true;
 
    AbrirArquivo();
-   Print("CohenScalper v1.16 carregado");
+   Print("CohenScalper v1.17 carregado");
    return INIT_SUCCEEDED;
   }
 
