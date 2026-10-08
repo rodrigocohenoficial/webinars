@@ -29,7 +29,7 @@ Scalper de price action. Sem indicadores. Uso próprio em backtest e demo antes 
 
 **Gestão**
 - Entradas a partir de 09:15. Última entrada às 13:00. Zera às 17:30.
-- Sem entradas em 09:30, 10:00, 10:30, 11:00 e 11:30, com margem de 5 min antes e depois. Exemplo para 09:30: não entra 09:25 nem 09:30; 09:35 já pode.
+- Bloqueio de horários opcional (desligado por padrão): quando ligado, não entra em 09:30, 10:00, 10:30, 11:00 e 11:30, com margem de 5 min antes e depois. Exemplo para 09:30: não entra 09:25 nem 09:30; 09:35 já pode.
 - Meta do dia de 500 pontos e loss do dia de 500 pontos, contados pelo preço médio (parcial 40 + final 180 = 110). Ao atingir qualquer um, para de abrir operações.
 - Contratos sempre pares.
 - Uma operação por vez.
@@ -68,6 +68,7 @@ Todos os números são parâmetros e podem ser otimizados no Strategy Tester.
 | Parcial | 40 pts / 50% | 0 desliga |
 | Stop no 0x0 após parcial | sim | |
 | Alvo final | 180 pts | |
+| Bloquear horários | não | Liga o bloqueio da linha abaixo |
 | Horários sem entrada | 09:30,10:00,10:30,11:00,11:30 | Separados por vírgula |
 | Margem | 5 min | Antes e depois de cada horário |
 | Última entrada | 13:00 | Teste outros horários |

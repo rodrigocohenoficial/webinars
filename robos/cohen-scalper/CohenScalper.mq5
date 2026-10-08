@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.06"
+#property version   "1.07"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -64,6 +64,7 @@ input group "Horários"
 input string               InpInicio        = "09:15";            // Início das entradas
 input string               InpUltimaEntrada = "13:00";            // Última entrada
 input string               InpZerar         = "17:30";            // Zera posição
+input bool                 InpBloquearHorarios = false;           // Não entrar nos horários abaixo
 input string               InpHorariosBloq  = "09:30,10:00,10:30,11:00,11:30"; // Horários sem entrada
 input int                  InpMargemBloqMin = 5;                  // Minutos antes/depois de cada horário bloqueado
 
@@ -146,7 +147,7 @@ int OnInit()
    if(BuscarPosicao(t, tipo, vol, preco, sl, tp) && vol < AjustarVolume(InpContratos))
       g_parcialFeita = true;
 
-   Print("CohenScalper v1.06 carregado (registra o motivo de cada candle)");
+   Print("CohenScalper v1.07 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -695,6 +696,8 @@ double AjustarVolume(double v)
 // Margem 5 em 09:30: não entra 09:25 nem 09:30; 09:35 já pode.
 bool HorarioBloqueado(int minuto)
   {
+   if(!InpBloquearHorarios)
+      return false;
    for(int i = 0; i < ArraySize(g_bloqueados); i++)
       if(minuto >= g_bloqueados[i] - InpMargemBloqMin && minuto < g_bloqueados[i] + InpMargemBloqMin)
          return true;
