@@ -759,7 +759,7 @@ void GerenciarPosicao(int minutoAgora)
    // Pregão que acabou antes do horário de zerar deixa a posição para o dia
    // seguinte. Scalper não dorme posicionado: zera no primeiro tick do novo dia.
    if(PositionSelectByTicket(ticket) &&
-      (datetime)PositionGetInteger(POSITION_TIME) / 86400 < TimeCurrent() / 86400)
+      PositionGetInteger(POSITION_TIME) / 86400 < (long)TimeCurrent() / 86400)
      {
       g_motivoSaida = "virou_dia";
       PrintFormat("Posição aberta em %s atravessou a noite. Zerando.",
