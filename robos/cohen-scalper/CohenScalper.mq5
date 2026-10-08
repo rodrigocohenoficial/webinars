@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.11"
+#property version   "1.12"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -91,6 +91,7 @@ int      g_retornoDir    = 0;     // modo retorno: 1 compra / -1 venda armada no
 double   g_retornoPreco  = 0;     // abertura do candle, onde a entrada acontece
 double   g_retornoRecuo  = 0;     // recuo mínimo, em preço
 bool     g_recuou        = false;
+double   g_retornoExtremo = 0;    // até onde o preço recuou enquanto a entrada estava armada
 double   g_precoReferencia = 0;   // preço no envio da ordem, reserva se a posição vier sem preço
 int      g_falhasStop    = 0;
 bool     g_hedging       = false;
@@ -178,7 +179,7 @@ int OnInit()
       g_parcialFeita = true;
 
    AbrirArquivo();
-   Print("CohenScalper v1.11 carregado");
+   Print("CohenScalper v1.12 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -334,6 +335,13 @@ void MonitorarReentrada(int minutoAgora)
 //+------------------------------------------------------------------+
 void NovoCandle(datetime abertura)
   {
+   if(g_retornoDir != 0)
+      Registrar(abertura - PeriodSeconds(InpTimeframe),
+                StringFormat("retorno não completou: abertura %.0f, precisava recuar até %.0f, %s chegou a %.0f%s",
+                             g_retornoPreco,
+                             g_retornoDir > 0 ? g_retornoPreco - g_retornoRecuo : g_retornoPreco + g_retornoRecuo,
+                             g_retornoDir > 0 ? "bid" : "ask", g_retornoExtremo,
+                             g_recuou ? " (recuou, mas não voltou à abertura)" : ""));
    CancelarPendentes();   // a entrada por retorno só vale durante um candle
    g_retornoDir = 0;
 
@@ -402,7 +410,9 @@ void NovoCandle(datetime abertura)
         }
      }
 
-   Registrar(abertura, motivo + StringFormat(" | dia: %.0f pts", pontosDia));
+   Registrar(abertura, motivo + StringFormat(" | dia: %.0f pts | bid %.0f ask %.0f último %.0f", pontosDia,
+             SymbolInfoDouble(_Symbol, SYMBOL_BID), SymbolInfoDouble(_Symbol, SYMBOL_ASK),
+             SymbolInfoDouble(_Symbol, SYMBOL_LAST)));
    double h1 = iHigh(_Symbol, InpTimeframe, 1), l1 = iLow(_Symbol, InpTimeframe, 1);
    g_sinalTamanho   = h1 - l1;
    g_sinalCorpo     = (h1 > l1) ? MathAbs(iClose(_Symbol, InpTimeframe, 1) - iOpen(_Symbol, InpTimeframe, 1)) * 100.0 / (h1 - l1) : 0;
@@ -585,6 +595,7 @@ void Entrar(int direcao)
    g_retornoDir    = direcao;
    g_retornoPreco  = abertura;
    g_retornoRecuo  = MathMax(ArredondarPreco(recuo), g_tick);
+   g_retornoExtremo = 0;
    g_precoReferencia = g_retornoPreco;
    g_recuou        = false;
 
@@ -649,6 +660,9 @@ void MonitorarRetorno()
    // Perdeu o candle sinal antes de entrar: setup invalidado.
    if((g_retornoDir > 0 && bid <= g_stopPlanejado) || (g_retornoDir < 0 && ask >= g_stopPlanejado))
      {
+      Registrar(iTime(_Symbol, InpTimeframe, 0),
+                StringFormat("retorno cancelado: perdeu o candle sinal antes de entrar (bid %.0f ask %.0f stop %.0f)",
+                             bid, ask, g_stopPlanejado));
       CancelarPendentes();
       g_retornoDir = 0;
       return;
@@ -656,6 +670,11 @@ void MonitorarRetorno()
 
    if(g_recuou)
       return;   // ordem stop já está na abertura
+
+   if(g_retornoDir > 0)
+      g_retornoExtremo = (g_retornoExtremo == 0) ? bid : MathMin(g_retornoExtremo, bid);
+   else
+      g_retornoExtremo = MathMax(g_retornoExtremo, ask);
 
    bool recuou = (g_retornoDir > 0) ? bid <= g_retornoPreco - g_retornoRecuo
                                     : ask >= g_retornoPreco + g_retornoRecuo;
