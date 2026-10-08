@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatMinutoSegundo } from "@/lib/time";
+import { formatarTelefoneBR } from "@/lib/phone";
 import { parseDaysOfWeek, proximosSlots } from "@/lib/schedule";
 import { alternarPublicacao, excluirWebinar } from "../../acoes";
 import FormularioWebinar, { type WebinarForm } from "./FormularioWebinar";
@@ -45,6 +46,11 @@ export default async function ConfigurarWebinar({ params }: { params: Promise<{ 
     ctaAtSec: w.ctaAtSec !== null ? formatMinutoSegundo(w.ctaAtSec) : "",
     ctaUntilSec: w.ctaUntilSec !== null ? formatMinutoSegundo(w.ctaUntilSec) : "",
     ctaNoFim: w.ctaNoFim,
+    suporteNome: w.suporteNome ?? "",
+    suporteWhatsapp: formatarTelefoneBR(w.suporteWhatsapp),
+    materialLabel: w.materialLabel ?? "",
+    materialUrl: w.materialUrl ?? "",
+    materialAtSec: w.materialAtSec !== null ? formatMinutoSegundo(w.materialAtSec) : "",
   };
 
   const proximos = proximosSlots(w.rules, new Date(), 6).map((s) => s.label);

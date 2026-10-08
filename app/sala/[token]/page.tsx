@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { enquetesDoWebinario } from "@/lib/enquetes";
 import { trilhaDeReacoes } from "@/lib/reacoes";
+import { apoioDaSala } from "@/lib/apoio";
 import { parseVideoUrl } from "@/lib/video";
 import Sala, { type DadosSala } from "./Sala";
 
@@ -59,6 +60,7 @@ export default async function PaginaSala({ params }: { params: Promise<{ token: 
     previa: false,
     enquetes,
     reacoes,
+    apoio: apoioDaSala(w),
     oferta:
       w.ctaUrl && w.ctaAtSec !== null
         ? {

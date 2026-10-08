@@ -8,6 +8,7 @@ import { parseTempo } from "@/lib/time";
 import { inteiro, ligado, slugificar, texto, textoOuNulo } from "@/lib/texto";
 import { buscarInfoDoVideo, parseVideoUrl, urlCanonica } from "@/lib/video";
 import { parseDaysOfWeek } from "@/lib/schedule";
+import { normalizarTelefoneBR } from "@/lib/phone";
 
 /**
  * Armadilha 9.9: nenhuma destas acoes lanca excecao para erro previsivel.
@@ -143,6 +144,22 @@ export async function salvarWebinar(_prev: EstadoForm, formData: FormData): Prom
     return { erro: "A oferta aparece depois do fim do video. Ninguem veria." };
   }
 
+  // ── Apoio na sala ──────────────────────────────────────────────────────
+  const whatsBruto = texto(formData.get("suporteWhatsapp"));
+  const suporteWhatsapp = whatsBruto ? normalizarTelefoneBR(whatsBruto) : null;
+  if (whatsBruto && !suporteWhatsapp) {
+    return { erro: "Nao reconheci o WhatsApp do suporte. Use DDD + numero, ex.: (11) 98765-4321." };
+  }
+
+  const materialUrl = textoOuNulo(formData.get("materialUrl"));
+  if (materialUrl && !/^(https?:\/\/|\/)/i.test(materialUrl)) {
+    return { erro: "O link do arquivo tem que comecar com https:// ou com /." };
+  }
+  const materialAtSec = parseTempo(texto(formData.get("materialAtSec")));
+  if (durationSec && materialAtSec !== null && materialAtSec >= durationSec) {
+    return { erro: "O material aparece depois do fim do video. Ninguem veria." };
+  }
+
   const published = ligado(formData.get("published"));
   if (published && !videoUrl) {
     // Nao e proibido: inscricoes podem abrir antes de a gravacao existir.
@@ -175,6 +192,11 @@ export async function salvarWebinar(_prev: EstadoForm, formData: FormData): Prom
     ctaAtSec,
     ctaUntilSec,
     ctaNoFim: ligado(formData.get("ctaNoFim")),
+    suporteNome: textoOuNulo(formData.get("suporteNome")),
+    suporteWhatsapp,
+    materialLabel: textoOuNulo(formData.get("materialLabel")),
+    materialUrl,
+    materialAtSec,
   };
 
   try {

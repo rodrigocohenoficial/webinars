@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { enquetesDoWebinario } from "@/lib/enquetes";
 import { trilhaDeReacoes } from "@/lib/reacoes";
+import { apoioDaSala } from "@/lib/apoio";
 import { parseVideoUrl } from "@/lib/video";
 import { formatMinutoSegundo } from "@/lib/time";
 import Sala, { type DadosSala } from "../../../../sala/[token]/Sala";
@@ -89,6 +90,7 @@ export default async function Previa({
     previa: true,
     enquetes,
     reacoes,
+    apoio: apoioDaSala(w),
   };
 
   const fim = w.durationSec ? w.durationSec - 20 : null;
