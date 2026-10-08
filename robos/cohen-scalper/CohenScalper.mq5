@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.08"
+#property version   "1.09"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -162,7 +162,7 @@ int OnInit()
       g_parcialFeita = true;
 
    AbrirArquivo();
-   Print("CohenScalper v1.08 carregado");
+   Print("CohenScalper v1.09 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -609,6 +609,12 @@ void GerenciarPosicao(int minutoAgora)
          return;
         }
       double alvo = (tipo == POSITION_TYPE_BUY) ? preco + InpAlvoPts : preco - InpAlvoPts;
+      if(preco > 0 && ((tipo == POSITION_TYPE_BUY && bid >= alvo) || (tipo == POSITION_TYPE_SELL && ask <= alvo)))
+        {
+         g_motivoSaida = "alvo";   // andou até o alvo antes de dar tempo de colocar stop e alvo
+         trade.PositionClose(ticket);
+         return;
+        }
       bool ok = preco > 0 && trade.PositionModify(ticket, g_stopPlanejado, ArredondarPreco(alvo)) &&
                 trade.ResultRetcode() == TRADE_RETCODE_DONE;
       if(!ok && ++g_falhasStop >= 5)
