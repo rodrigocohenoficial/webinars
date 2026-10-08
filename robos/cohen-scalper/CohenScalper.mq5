@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.13"
+#property version   "1.14"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -112,6 +112,10 @@ int      g_arquivo       = INVALID_HANDLE;
 string   g_nomeArquivo   = "";
 int      g_totalOps = 0, g_ganhos = 0, g_perdas = 0, g_zeros = 0;
 double   g_totalPts = 0, g_ptsGanhos = 0, g_ptsPerdas = 0, g_pico = 0, g_maxDD = 0;
+double   g_maiorGanho = 0, g_maiorPerda = 0;          // operação, em pontos pelo preço médio
+string   g_descMaiorGanho = "", g_descMaiorPerda = "";
+int      g_reOps = 0, g_viradas = 0;
+double   g_rePts = 0;
 
 // Reentrada: saiu no 0x0 depois da parcial e o preço voltou à entrada -> entra de novo,
 // mesmo sinal, mesmo stop, mesma parcial e mesmo alvo.
@@ -179,7 +183,7 @@ int OnInit()
       g_parcialFeita = true;
 
    AbrirArquivo();
-   Print("CohenScalper v1.13 carregado");
+   Print("CohenScalper v1.14 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -199,6 +203,11 @@ void OnDeinit(const int reason)
    if(reaisPorPonto > 0)
       PrintFormat("Em R$ com %.0f contratos: resultado %.2f | drawdown máximo %.2f (sem emolumentos)",
                   InpContratos, g_totalPts * reaisPorPonto * InpContratos, g_maxDD * reaisPorPonto * InpContratos);
+   PrintFormat("Maior ganho: %s | maior perda: %s", g_descMaiorGanho, g_descMaiorPerda);
+   if(g_reOps > 0)
+      PrintFormat("Reentradas: %d operações, %.0f pts (já incluídas no total)", g_reOps, g_rePts);
+   if(g_viradas > 0)
+      PrintFormat("ATENÇÃO: %d posições atravessaram a noite e foram zeradas no dia seguinte", g_viradas);
    if(g_nomeArquivo != "")
       PrintFormat("Operações salvas em %s\\Files\\%s", TerminalInfoString(TERMINAL_COMMONDATA_PATH), g_nomeArquivo);
   }
@@ -747,6 +756,18 @@ void GerenciarPosicao(int minutoAgora)
       return;
      }
 
+   // Pregão que acabou antes do horário de zerar deixa a posição para o dia
+   // seguinte. Scalper não dorme posicionado: zera no primeiro tick do novo dia.
+   if(PositionSelectByTicket(ticket) &&
+      (datetime)PositionGetInteger(POSITION_TIME) / 86400 < TimeCurrent() / 86400)
+     {
+      g_motivoSaida = "virou_dia";
+      PrintFormat("Posição aberta em %s atravessou a noite. Zerando.",
+                  TimeToString((datetime)PositionGetInteger(POSITION_TIME)));
+      trade.PositionClose(ticket);
+      return;
+     }
+
    // Stop e alvo entram logo após a execução, a partir do preço executado.
    if(sl == 0 && tp == 0)
      {
@@ -944,6 +965,13 @@ void RegistrarOperacao(long id)
    else             g_zeros++;
    g_pico  = MathMax(g_pico, g_totalPts);
    g_maxDD = MathMax(g_maxDD, g_pico - g_totalPts);
+   if(g_posReentrada) { g_reOps++; g_rePts += pts; }
+   if(motivo == "virou_dia")
+      g_viradas++;
+   string desc = StringFormat("%.0f pts em %s (%s, %s%s)", pts, TimeToString(tEntrada),
+                              dir > 0 ? "compra" : "venda", motivo, g_posReentrada ? ", reentrada" : "");
+   if(pts > g_maiorGanho) { g_maiorGanho = pts; g_descMaiorGanho = desc; }
+   if(pts < g_maiorPerda) { g_maiorPerda = pts; g_descMaiorPerda = desc; }
 
    if(g_arquivo == INVALID_HANDLE)
       return;
