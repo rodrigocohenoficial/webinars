@@ -451,6 +451,17 @@ void GerenciarPosicao(int minutoAgora)
       return;
      }
 
+   // Na B3 o stop/alvo da posição nem sempre é executado pelo MT5 (no testador,
+   // o preço passou pelos dois e a posição ficou aberta). O robô confere a cada
+   // tick e zera a mercado. O stop/alvo da posição fica como proteção extra.
+   bool bateuStop = (tipo == POSITION_TYPE_BUY) ? bid <= sl : ask >= sl;
+   bool bateuAlvo = tp > 0 && ((tipo == POSITION_TYPE_BUY) ? bid >= tp : ask <= tp);
+   if((sl > 0 && bateuStop) || bateuAlvo)
+     {
+      trade.PositionClose(ticket);
+      return;
+     }
+
    if(g_parcialFeita || InpParcialPts <= 0)
       return;
 
