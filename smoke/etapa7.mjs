@@ -23,7 +23,8 @@ await sala.route("**/iframe_api*", (r) => r.fulfill({ contentType: "text/javascr
 await sala.addInitScript(() => { window.__permitirSomAutomatico = true; });
 
 const batidas = [];
-sala.on("request", (r) => { if (/\/presenca$/.test(r.url())) batidas.push(Date.now()); });
+// a batida viaja na consulta do chat (?sec=); a rota avulsa fica para o beacon de saida
+sala.on("request", (r) => { if (/\/presenca$|\/chat\?sec=\d+/.test(r.url())) batidas.push(Date.now()); });
 await sala.goto(`${BASE}/sala/pres-a`);
 await sala.waitForSelector("text=Conversa", { timeout: 20000 });
 await sala.waitForTimeout(2500);
