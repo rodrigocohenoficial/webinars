@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.14"
+#property version   "1.15"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -183,7 +183,7 @@ int OnInit()
       g_parcialFeita = true;
 
    AbrirArquivo();
-   Print("CohenScalper v1.14 carregado");
+   Print("CohenScalper v1.15 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -947,8 +947,14 @@ void RegistrarOperacao(long id)
    if(!DadosDaPosicao(id, pts, tEntrada, tSaida, dir, entrada, parcial, saida) || tSaida == 0)
       return;
 
-   string motivo = (g_motivoSaida == "") ? "servidor" : g_motivoSaida;
+   string motivo = g_motivoSaida;
    g_motivoSaida = "";
+   if(motivo == "")
+     {
+      // O stop/alvo da posição foi executado pelo servidor antes do robô: o motivo sai do preço.
+      double resultado = (saida - entrada) * dir;
+      motivo = (MathAbs(resultado) < g_tick / 2) ? "0x0" : (resultado >= InpAlvoPts - g_tick / 2) ? "alvo" : "stop";
+     }
 
    if(motivo == "0x0" && g_reRestantes > 0 && g_posStop > 0)
      {
