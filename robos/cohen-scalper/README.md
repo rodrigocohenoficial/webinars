@@ -67,6 +67,8 @@ No `WIN$N` da corretora o valor do ponto vem zerado: o testador executa as orden
 | Tamanho máximo | 500 | Candle sinal maior que isso é ignorado |
 | Modo de entrada | abertura | `abertura` ou `retorno` |
 | Recuo mínimo | 10% do candle sinal | Só no modo `retorno`. Também aceita pontos |
+| Unidade do recuo | % do candle | `%`, `pontos` ou `FVG` (até a máx/mín do candle anterior ao sinal) |
+| Entrar limitado no recuo | não | Sim: ordem limitada no ponto do recuo, sem esperar voltar à abertura |
 | Filtro de tendência | desligado | `desligado`, `só a favor` ou `depois do horário` |
 | Horário da tendência | 13:00 | Só no modo `depois do horário` |
 | Força do pivô | 2 | Candles de cada lado para confirmar topo/fundo |

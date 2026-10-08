@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.09"
+#property version   "1.10"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -25,7 +25,8 @@ enum ENUM_MODO_ENTRADA
 enum ENUM_UNIDADE_RECUO
   {
    RECUO_PCT_CANDLE = 0,    // % do tamanho do candle sinal
-   RECUO_PONTOS     = 1     // Pontos
+   RECUO_PONTOS     = 1,    // Pontos
+   RECUO_FVG        = 2     // Até a máx/mín do candle anterior ao sinal (fecha o FVG)
   };
 
 enum ENUM_FILTRO_TENDENCIA
@@ -46,6 +47,7 @@ input group "Entrada"
 input ENUM_MODO_ENTRADA    InpModoEntrada   = ENTRADA_ABERTURA;   // Modo de entrada
 input double               InpRecuo         = 10.0;               // Modo retorno: recuo mínimo antes de entrar
 input ENUM_UNIDADE_RECUO   InpUnidadeRecuo  = RECUO_PCT_CANDLE;   // Modo retorno: unidade do recuo
+input bool                 InpEntrarNoRecuo = false;              // Modo retorno: entrar limitado no ponto do recuo (sem esperar voltar)
 
 input group "Tendência (topos e fundos)"
 input ENUM_FILTRO_TENDENCIA InpFiltroTendencia = TEND_DESLIGADO;  // Filtro de tendência
@@ -162,7 +164,7 @@ int OnInit()
       g_parcialFeita = true;
 
    AbrirArquivo();
-   Print("CohenScalper v1.09 carregado");
+   Print("CohenScalper v1.10 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -483,14 +485,68 @@ void Entrar(int direcao)
 
    // Retorno: arma a entrada. MonitorarRetorno espera o candle recuar e
    // coloca a ordem stop na abertura dele (= fechamento do candle sinal).
-   double recuo = (InpUnidadeRecuo == RECUO_PCT_CANDLE) ? (h1 - l1) * InpRecuo / 100.0 : InpRecuo;
+   double abertura = ArredondarPreco(iOpen(_Symbol, InpTimeframe, 0));
+   double recuo;
+   if(InpUnidadeRecuo == RECUO_FVG)
+     {
+      // Fechar o FVG: voltar até a máxima (compra) ou mínima (venda) do candle
+      // anterior ao sinal, o nível que o sinal rompeu.
+      double nivel = (direcao > 0) ? iHigh(_Symbol, InpTimeframe, 2) : iLow(_Symbol, InpTimeframe, 2);
+      if((direcao > 0 && nivel <= stop) || (direcao < 0 && nivel >= stop))
+        {
+         Registrar(iTime(_Symbol, InpTimeframe, 0), "entrada cancelada: fechar o FVG exigiria passar do stop");
+         return;
+        }
+      recuo = (direcao > 0) ? abertura - nivel : nivel - abertura;
+     }
+   else
+      recuo = (InpUnidadeRecuo == RECUO_PCT_CANDLE) ? (h1 - l1) * InpRecuo / 100.0 : InpRecuo;
+
    g_stopPlanejado = stop;
    g_retornoDir    = direcao;
-   g_retornoPreco  = ArredondarPreco(iOpen(_Symbol, InpTimeframe, 0));
+   g_retornoPreco  = abertura;
    g_retornoRecuo  = MathMax(ArredondarPreco(recuo), g_tick);
    g_precoReferencia = g_retornoPreco;
    g_recuou        = false;
+
+   if(InpEntrarNoRecuo)
+     {
+      // Sem confirmação: ordem limitada no ponto do recuo, válida só neste candle.
+      double limite = (direcao > 0) ? abertura - g_retornoRecuo : abertura + g_retornoRecuo;
+      if((direcao > 0 && limite <= stop) || (direcao < 0 && limite >= stop))
+        {
+         g_retornoDir = 0;
+         return;
+        }
+      g_precoReferencia = limite;
+      g_recuou = true;   // MonitorarRetorno só cuida de cancelar se perder o sinal
+      double volume = AjustarVolume(InpContratos);
+      if(direcao > 0)
+        {
+         if(ask <= limite)
+            trade.Buy(volume, _Symbol, 0, 0, 0, "recuo");
+         else
+            trade.BuyLimit(volume, limite, _Symbol, 0, 0, TipoValidade(), 0, "recuo");
+        }
+      else
+        {
+         if(bid >= limite)
+            trade.Sell(volume, _Symbol, 0, 0, 0, "recuo");
+         else
+            trade.SellLimit(volume, limite, _Symbol, 0, 0, TipoValidade(), 0, "recuo");
+        }
+      return;
+     }
    MonitorarRetorno();
+  }
+
+// Como a entrada foi feita, para o arquivo de operações.
+string DescreverEntrada()
+  {
+   if(InpModoEntrada == ENTRADA_ABERTURA)
+      return "abertura";
+   string recuo = (InpUnidadeRecuo == RECUO_FVG) ? "fvg" : (InpUnidadeRecuo == RECUO_PONTOS) ? "pontos" : "pct";
+   return (InpEntrarNoRecuo ? "limitada_" : "retorno_") + recuo;
   }
 
 //+------------------------------------------------------------------+
@@ -792,7 +848,7 @@ void RegistrarOperacao(long id)
              DoubleToString(pts, 1), DoubleToString(g_mfe, _Digits), DoubleToString(g_mae, _Digits),
              DoubleToString(g_sinalTamanho, _Digits), DoubleToString(g_sinalCorpo, 0),
              g_sinalTendencia > 0 ? "alta" : g_sinalTendencia < 0 ? "baixa" : "sem",
-             InpModoEntrada == ENTRADA_ABERTURA ? "abertura" : "retorno");
+             DescreverEntrada());
    FileFlush(g_arquivo);
   }
 
