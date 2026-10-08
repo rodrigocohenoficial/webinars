@@ -40,17 +40,17 @@ void OnStart()
       return;
      }
 
+   // Já aparece na Observação do Mercado (e no testador), mesmo antes de copiar os ticks.
+   SymbolSelect(InpDestino, true);
+
    // O que falta no WIN$N: valor do ponto e cálculo de futuros da bolsa.
-   bool ok = CustomSymbolSetDouble(InpDestino, SYMBOL_TRADE_TICK_SIZE, InpTamanhoTick) &&
-             CustomSymbolSetDouble(InpDestino, SYMBOL_TRADE_TICK_VALUE, InpValorTick) &&
-             CustomSymbolSetDouble(InpDestino, SYMBOL_TRADE_CONTRACT_SIZE, 1) &&
-             CustomSymbolSetInteger(InpDestino, SYMBOL_TRADE_CALC_MODE, SYMBOL_CALC_MODE_EXCH_FUTURES) &&
-             CustomSymbolSetInteger(InpDestino, SYMBOL_TRADE_MODE, SYMBOL_TRADE_MODE_FULL);
-   if(!ok)
-     {
-      PrintFormat("Não consegui configurar o valor do ponto de %s (erro %d).", InpDestino, GetLastError());
-      return;
-     }
+   Configurar("tamanho do tick", CustomSymbolSetDouble(InpDestino, SYMBOL_TRADE_TICK_SIZE, InpTamanhoTick));
+   Configurar("valor do tick", CustomSymbolSetDouble(InpDestino, SYMBOL_TRADE_TICK_VALUE, InpValorTick));
+   Configurar("tamanho do contrato", CustomSymbolSetDouble(InpDestino, SYMBOL_TRADE_CONTRACT_SIZE, 1));
+   Configurar("cálculo de futuros", CustomSymbolSetInteger(InpDestino, SYMBOL_TRADE_CALC_MODE, SYMBOL_CALC_MODE_EXCH_FUTURES));
+   Configurar("negociação liberada", CustomSymbolSetInteger(InpDestino, SYMBOL_TRADE_MODE, SYMBOL_TRADE_MODE_FULL));
+   PrintFormat("%s criado: valor do tick %.2f a cada %.1f pontos.", InpDestino,
+               SymbolInfoDouble(InpDestino, SYMBOL_TRADE_TICK_VALUE), SymbolInfoDouble(InpDestino, SYMBOL_TRADE_TICK_SIZE));
 
    datetime ate = (InpAte == 0) ? TimeCurrent() : InpAte;
    PrintFormat("Copiando ticks de %s para %s, de %s até %s. Pode demorar.",
@@ -101,5 +101,12 @@ void OnStart()
    SymbolSelect(InpDestino, true);
    PrintFormat("Pronto: %s com %d pregões, %I64d ticks e %d barras de 1 minuto. Use %s no testador.",
                InpDestino, diasComTicks, total, nb, InpDestino);
+  }
+// Uma configuração que falha não interrompe a cópia: só avisa.
+void Configurar(string oque, bool ok)
+  {
+   if(!ok)
+      PrintFormat("Aviso: não consegui ajustar %s (erro %d). Ajuste à mão em Símbolos > %s > Especificação.",
+                  oque, GetLastError(), InpDestino);
   }
 //+------------------------------------------------------------------+
