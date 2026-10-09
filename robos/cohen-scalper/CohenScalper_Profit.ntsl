@@ -1,5 +1,5 @@
 // =====================================================================
-// CohenScalper v1.20 - NTSL (Profit)  -  mesma regra do robô do MT5
+// CohenScalper v1.21 - NTSL (Profit)  -  mesma regra do robô do MT5
 //
 // RODAR EM GRÁFICO DE 1 MINUTO do WIN, com execução TICK A TICK no
 // backtest e na automação. O código é seguro para rodar a cada negócio:
@@ -7,8 +7,11 @@
 //    começa o candle seguinte, não somado barra a barra;
 //  - prazos (candle de entrada, reentrada) são por horário, não por
 //    contagem de execuções;
-//  - a saída é identificada pelo último negócio (Close), não pela
-//    máxima/mínima do candle.
+//  - preços de parcial e saída = último negócio (Close) na execução em
+//    que a posição mudou (o NTSL não informa o preço da ordem executada);
+//  - recuo, retorno e invalidação pela cotação atual (Close), como o MT5;
+//  - candle sinal e anterior precisam ser do mesmo pregão, como o MT5;
+//  - ordens pendentes canceladas com CancelPendingOrders ao desarmar.
 //
 // Regra:
 //  - Sinal: candle de 5 min com corpo > 50% do tamanho, fechando acima da
@@ -52,7 +55,7 @@ var
   passoPreco, minutoDia, inicioMin, ultimaMin, zerarMin, ultimaData : Float;
   bucketAgora, bucketAtual, bucketFechado, mk, achou : Float;
   k : Integer;
-  cO, cH, cL, cC, aH, aL, tamanho, corpo : Float;
+  cO, cH, cL, cC, aH, aL, cData, aData, tamanho, corpo : Float;
   temAnterior : Boolean;
   sinalDir, armado, bucketEntrada, precoEntrada, stopPlan, recuo : Float;
   recuou : Boolean;
@@ -61,7 +64,7 @@ var
   qtdIni, qtdAnt, qtdAgora, qtdParcial, qtdFinal : Float;
   saida, pts, ptsDia, alvoPreco, distAlvo, distStop : Float;
   reRest, reDir, rePreco, reStop, reAte : Float;
-  limiteDia : Boolean;
+  limiteDia, enviou, pendente, foi0x0 : Boolean;
 
 begin
   passoPreco := MinPriceIncrement;
@@ -116,11 +119,12 @@ begin
       reDir := 0;
     end;
 
-    // Saiu parte da posição: foi a parcial (ordem limitada em entrada + Parcial).
+    // Saiu parte da posição: foi a parcial. O stop e o alvo final cobrem a
+    // posição inteira ou o resto dela, então só a parcial reduz sem zerar.
     if (qtdAgora < qtdAnt) and (not parcialFeita) then
     begin
       parcialFeita := true;
-      ptsDia := ptsDia + Parcial * (qtdAnt - qtdAgora) / qtdIni;
+      ptsDia := ptsDia + (Close - entrada) * dirPos * (qtdAnt - qtdAgora) / qtdIni;
     end;
     qtdAnt := qtdAgora;
 
@@ -166,24 +170,21 @@ begin
   begin
     posAberta := false;
 
-    // Preço de saída: o último negócio (Close) diz qual ordem executou,
-    // o alvo ou o stop, o que estiver mais perto dele.
+    // Preço de saída = último negócio na execução em que zerou.
+    // Saída perto da entrada, depois da parcial, foi o 0x0 (e não o alvo).
+    saida := Close;
     alvoPreco := entrada + dirPos * Alvo;
-    distAlvo := Abs(Close - alvoPreco);
-    distStop := Abs(Close - stopAtual);
-    if saiuZerando then
-      saida := Close
-    else if (distAlvo < distStop) then
-      saida := alvoPreco
-    else
-      saida := stopAtual;
+    distAlvo := Abs(saida - alvoPreco);
+    distStop := Abs(saida - entrada);
+    foi0x0 := parcialFeita and (ZeroAposParcial = 1) and (distStop < distAlvo) and (not saiuZerando);
 
     pts := (saida - entrada) * dirPos * qtdAnt / qtdIni;
     ptsDia := ptsDia + pts;
     limiteDia := ((MetaDia > 0) and (ptsDia >= MetaDia)) or ((LossDia > 0) and (ptsDia <= -LossDia));
 
-    // Saiu no 0x0: arma a reentrada no preço da entrada, por ReentradaMin minutos.
-    if parcialFeita and (ZeroAposParcial = 1) and (saida = entrada) and (reRest > 0) and (not saiuZerando) then
+    // Saiu no 0x0: arma a reentrada no preço da entrada, por ReentradaMin
+    // minutos (o NTSL conta em minutos inteiros; o MT5, em segundos).
+    if foi0x0 and (reRest > 0) then
     begin
       reDir := dirPos;
       rePreco := entrada;
@@ -197,7 +198,7 @@ begin
   begin
     if (minutoDia > reAte) or limiteDia or (minutoDia > ultimaMin) then
       reDir := 0
-    else if ((reDir = 1) and (Low <= reStop)) or ((reDir = -1) and (High >= reStop)) then
+    else if ((reDir = 1) and (Close <= reStop)) or ((reDir = -1) and (Close >= reStop)) then
       reDir := 0;
   end;
 
@@ -236,10 +237,12 @@ begin
 
     if (achou > 0) then
     begin
+      cData := Date[1];
       sinalDir := 0;
       tamanho := cH - cL;
       corpo := Abs(cC - cO);
-      if temAnterior and (tamanho > 0) and
+      // Candle sinal e anterior do mesmo pregão, e o de entrada também (como o MT5).
+      if temAnterior and (aData = cData) and (cData = Date) and (tamanho > 0) and
          ((TamanhoMax <= 0) or (tamanho <= TamanhoMax)) and
          ((TamanhoMin <= 0) or (tamanho >= TamanhoMin)) and
          (corpo * 100 > CorpoMinPct * tamanho) then
@@ -275,6 +278,7 @@ begin
 
       aH := cH;
       aL := cL;
+      aData := cData;
       temAnterior := true;
     end;
   end;
@@ -284,33 +288,53 @@ begin
   begin
     if (bucketAtual <> bucketEntrada) then
       armado := 0
-    else if ((armado = 1) and (Low <= stopPlan)) or ((armado = -1) and (High >= stopPlan)) then
+    else if ((armado = 1) and (Close <= stopPlan)) or ((armado = -1) and (Close >= stopPlan)) then
       armado := 0                     // perdeu o candle sinal antes de entrar
     else if (not recuou) then
     begin
-      if ((armado = 1) and (Low <= precoEntrada - recuo)) or ((armado = -1) and (High >= precoEntrada + recuo)) then
+      if ((armado = 1) and (Close <= precoEntrada - recuo)) or ((armado = -1) and (Close >= precoEntrada + recuo)) then
         recuou := true;
     end;
   end;
 
   // ---------------- Ordens de entrada ----------------
-  // No NTSL a ordem vale até a próxima execução: se não for reenviada, o Profit cancela.
-  if (Position = 0) and (not limiteDia) and (minutoDia < zerarMin) then
+  // A reentrada usa ordem limitada no preço da entrada: executa no mesmo preço
+  // da ordem a mercado do MT5 e não duplica a ordem se a posição demorar a
+  // aparecer na automação (uma ordem a mercado reenviada a cada negócio duplicaria).
+  if (Position = 0) then
   begin
-    if (armado <> 0) and recuou then
+    enviou := false;
+    if (not limiteDia) and (minutoDia < zerarMin) then
     begin
-      if (armado = 1) then
-        BuyStop(precoEntrada, precoEntrada + DerrapagemTicks * passoPreco, Contratos)
-      else
-        SellShortStop(precoEntrada, precoEntrada - DerrapagemTicks * passoPreco, Contratos);
-    end
-    else if (reDir <> 0) then
-    begin
-      stopPlan := reStop;
-      if (reDir = 1) then
-        BuyLimit(rePreco, Contratos)
-      else
-        SellShortLimit(rePreco, Contratos);
+      if (armado <> 0) and recuou then
+      begin
+        if (armado = 1) then
+          BuyStop(precoEntrada, precoEntrada + DerrapagemTicks * passoPreco, Contratos)
+        else
+          SellShortStop(precoEntrada, precoEntrada - DerrapagemTicks * passoPreco, Contratos);
+        enviou := true;
+      end
+      else if (reDir <> 0) then
+      begin
+        stopPlan := reStop;
+        if (reDir = 1) then
+          BuyLimit(rePreco, Contratos)
+        else
+          SellShortLimit(rePreco, Contratos);
+        enviou := true;
+      end;
     end;
-  end;
+
+    // Desarmou (candle acabou, perdeu o sinal, prazo da reentrada) ou acabou de
+    // zerar: cancela explicitamente o que ficou pendente.
+    if enviou then
+      pendente := true
+    else if pendente then
+    begin
+      CancelPendingOrders;
+      pendente := false;
+    end;
+  end
+  else
+    pendente := true;
 end;
