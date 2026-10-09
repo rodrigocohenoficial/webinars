@@ -128,3 +128,12 @@ Até 17h ganhou mais na escolha, mas empatou com 15h na prova com 26% mais negoc
 ### Versão varejo (v1.19, padrão)
 
 Candle até 1.000, meta 1.500, loss 500, última entrada 15h. Escolhidos pelo risco, não pelo resultado. Backtest único jan/2022–fev/2026, 2 contratos, sem custos: 164.058 pts (~3.280/mês, ~R$ 1.300/mês), fator de lucro 1,31, pior queda R$ 2.008 (1,6%), ~17.150 operações (~9,6 pts cada). Contra a versão sem limites (15h, sem meta, loss 1000, candle 2000): −5%.
+
+## Profit (NTSL) — `CohenScalper_Profit.ntsl`
+
+Mesma regra da v1.19, só o que foi validado (sem filtro de tendência, bloqueio de horários e FVG).
+
+1. Profit → Ferramentas → Editor de Estratégias → Nova estratégia de execução. Cole o conteúdo do arquivo e compile. Se der erro, mande o print com a linha.
+2. **Aplique em gráfico de 1 MINUTO.** O robô monta os candles de 5 min sozinho e usa o 1 min para ver recuo, retorno, parcial e stop.
+3. Backtest do Profit é por candle (sem tick). No MT5 o modo "OHLC de 1 minuto" inflou o resultado em ~3x — não compare direto com o MT5 de ticks reais. Use o backtest do Profit para conferir se as entradas batem e o **Replay** para medir.
+4. Limitações conhecidas: as ordens de saída só entram na barra seguinte à execução da entrada; o resultado do dia (meta/loss) é estimado pelos preços das ordens.
