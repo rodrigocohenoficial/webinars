@@ -1,10 +1,12 @@
 // =====================================================================
-// CohenScalper v1.22 - NTSL (Profit)  -  mesma regra do robô do MT5
+// CohenScalper v1.23 - NTSL (Profit)  -  mesma regra do robô do MT5
 //
 // RODAR EM GRÁFICO DE 1 MINUTO do WIN, com execução TICK A TICK no
 // backtest e na automação. O código é seguro para rodar a cada negócio:
-//  - o candle de 5 min é lido do histórico (barras [1] a [5]) quando
-//    começa o candle seguinte, não somado barra a barra;
+//  - o candle de 5 min é montado com máxima/mínima/último negócio e só é
+//    avaliado quando começa o candle seguinte (sem ler o histórico);
+//  - o primeiro candle depois de ligar o robô é descartado (pode estar
+//    pela metade);
 //  - prazos (candle de entrada, reentrada) são por horário, não por
 //    contagem de execuções;
 //  - preços de parcial e saída = último negócio (Close) na execução em
@@ -55,8 +57,9 @@ input
 
 var
   passoPreco, minutoDia, inicioMin, ultimaMin, zerarMin, ultimaData : Float;
-  bucketAgora, bucketAtual, bucketFechado, mk, achou : Float;
-  k : Integer;
+  bucketAgora, bucketAtual : Float;
+  gO, gH, gL, gC, gData : Float;
+  gCompleto : Boolean;
   cO, cH, cL, cC, aH, aL, cData, aData, tamanho, corpo : Float;
   temAnterior : Boolean;
   sinalDir, armado, bucketEntrada, precoEntrada, stopPlan, recuo : Float;
@@ -67,7 +70,6 @@ var
   saida, pts, ptsDia, alvoPreco, distAlvo, distStop : Float;
   reRest, reDir, rePreco, reStop, reAte : Float;
   limiteDia, enviou, pendente, foi0x0 : Boolean;
-  tempoAnt, barrasVistas : Float;
 
 begin
   passoPreco := MinPriceIncrement;
@@ -79,14 +81,6 @@ begin
   inicioMin := Floor(HoraInicio / 100) * 60 + (HoraInicio - Floor(HoraInicio / 100) * 100);
   ultimaMin := Floor(HoraUltimaEntrada / 100) * 60 + (HoraUltimaEntrada - Floor(HoraUltimaEntrada / 100) * 100);
   zerarMin  := Floor(HoraZerar / 100) * 60 + (HoraZerar - Floor(HoraZerar / 100) * 100);
-
-  // Conta as barras do gráfico (uma vez por barra, mesmo rodando a cada negócio).
-  // O histórico [1]..[5] só é lido depois que existem barras suficientes.
-  if (Time <> tempoAnt) then
-  begin
-    tempoAnt := Time;
-    barrasVistas := barrasVistas + 1;
-  end;
 
   // ---------------- Novo dia ----------------
   if (Date <> ultimaData) then
@@ -213,42 +207,22 @@ begin
       reDir := 0;
   end;
 
-  // ---------------- Começou um candle de 5: confere o que acabou de fechar ----------------
+  // ---------------- Candle de 5 minutos ----------------
+  // gO/gH/gL/gC acumulam o candle em andamento (máxima, mínima e último
+  // negócio). Quando começa o próximo candle, o acumulado é o candle fechado.
   bucketAgora := minutoDia - (minutoDia - Floor(minutoDia / TempoSinal) * TempoSinal);
-  if (bucketAgora <> bucketAtual) and (barrasVistas > 2 * TempoSinal) then
+  if (bucketAgora <> bucketAtual) then
   begin
-    bucketFechado := bucketAtual;
-    bucketAtual := bucketAgora;
-
     // O candle de entrada que estava armado acabou sem voltar: cancela.
     armado := 0;
 
-    // Monta o candle fechado com as barras de 1 min [1]..[TempoSinal] do mesmo período.
-    achou := 0;
-    for k := 1 to TempoSinal do
+    if gCompleto then
     begin
-      mk := Floor(Time[k] / 100) * 60 + (Time[k] - Floor(Time[k] / 100) * 100);
-      if (mk - (mk - Floor(mk / TempoSinal) * TempoSinal) = bucketFechado) and (Date[k] = Date[1]) then
-      begin
-        if (achou = 0) then
-        begin
-          cH := High[k];
-          cL := Low[k];
-          cC := Close[k];
-        end
-        else
-        begin
-          if (High[k] > cH) then cH := High[k];
-          if (Low[k] < cL) then cL := Low[k];
-        end;
-        cO := Open[k];
-        achou := achou + 1;
-      end;
-    end;
-
-    if (achou > 0) then
-    begin
-      cData := Date[1];
+      cO := gO;
+      cH := gH;
+      cL := gL;
+      cC := gC;
+      cData := gData;
       sinalDir := 0;
       tamanho := cH - cL;
       corpo := Abs(cC - cO);
@@ -266,11 +240,11 @@ begin
 
       // O candle de entrada é o que está começando agora.
       if (sinalDir <> 0) and (Position = 0) and (not limiteDia) and
-         (bucketAtual >= inicioMin) and (bucketAtual <= ultimaMin) and (bucketAtual < zerarMin) then
+         (bucketAgora >= inicioMin) and (bucketAgora <= ultimaMin) and (bucketAgora < zerarMin) then
       begin
         reDir := 0;
         reRest := MaxReentradas;
-        bucketEntrada := bucketAtual;
+        bucketEntrada := bucketAgora;
         precoEntrada := Open;              // abertura do candle de entrada
         recuo := tamanho * RecuoPct / 100;
         recuou := false;
@@ -292,6 +266,22 @@ begin
       aData := cData;
       temAnterior := true;
     end;
+
+    // Começa a acumular o candle novo. Só conta como completo se o robô viu
+    // o candle desde o começo (o primeiro depois de ligar é descartado).
+    gCompleto := (bucketAtual > 0);
+    bucketAtual := bucketAgora;
+    gO := Open;
+    gH := High;
+    gL := Low;
+    gC := Close;
+    gData := Date;
+  end
+  else
+  begin
+    if (High > gH) then gH := High;
+    if (Low < gL) then gL := Low;
+    gC := Close;
   end;
 
   // ---------------- Entrada no retorno: dentro do candle de entrada ----------------
