@@ -1,4 +1,4 @@
-# CohenScalper (MQL5) — v1.18
+# CohenScalper (MQL5) — v1.19
 
 Scalper de price action. Sem indicadores. Uso próprio em backtest e demo antes de qualquer versão para alunos (depois porta para NTSL).
 
@@ -77,7 +77,7 @@ A mesma configuração ficou em 1º lugar nos dois períodos. Tamanho máximo de
 | Tempo gráfico | M5 | Tempo do candle sinal |
 | Referência do fechamento | máxima/mínima | Fechar além da máxima/mínima ou do fechamento do anterior |
 | Corpo maior que X% | 50 | Força mínima do candle |
-| Tamanho máximo | 2000 | Candle sinal maior que isso é ignorado |
+| Tamanho máximo | 1000 | Candle sinal maior que isso é ignorado. Limita o stop por operação a ~R$ 400 com 2 contratos |
 | Modo de entrada | retorno | `abertura` ou `retorno` |
 | Recuo mínimo | 10% do candle sinal | Só no modo `retorno`. Também aceita pontos |
 | Unidade do recuo | % do candle | `%`, `pontos` ou `FVG` (até a máx/mín do candle anterior ao sinal) |
@@ -95,8 +95,8 @@ A mesma configuração ficou em 1º lugar nos dois períodos. Tamanho máximo de
 | Margem | 5 min | Antes e depois de cada horário |
 | Última entrada | 1500 | HHMM, otimizável (ex.: 1300 a 1700) |
 | Contratos | 2 | Sempre par |
-| Meta do dia | 0 (sem meta) | Preço médio. Meta de 500 cortava os dias bons |
-| Loss do dia | 1000 pts | Preço médio. 750–1500 dão o mesmo resultado |
+| Meta do dia | 1500 pts | Preço médio. Custa ~0% (500 cortava 22%) |
+| Loss do dia | 500 pts | Preço médio. Custa ~5% contra 1000 e cabe no bolso do varejo |
 | Reentradas | 1 | Depois de sair no 0x0. 0 desliga |
 
 ## WIN x WDO
@@ -124,3 +124,7 @@ Escolha em 2022–2024, prova em jan/2025–fev/2026, 2 contratos, sem custos:
 | 17h · sem meta · 1000 | 158.528 pts | 52.772 pts | 1,01% |
 
 Até 17h ganhou mais na escolha, mas empatou com 15h na prova com 26% mais negociações (mais custo) e queda maior. Ficou 15h.
+
+### Versão varejo (v1.19, padrão)
+
+Candle até 1.000, meta 1.500, loss 500, última entrada 15h. Escolhidos pelo risco, não pelo resultado. Backtest único jan/2022–fev/2026, 2 contratos, sem custos: 164.058 pts (~3.280/mês, ~R$ 1.300/mês), fator de lucro 1,31, pior queda R$ 2.008 (1,6%), ~17.150 operações (~9,6 pts cada). Contra a versão sem limites (15h, sem meta, loss 1000, candle 2000): −5%.

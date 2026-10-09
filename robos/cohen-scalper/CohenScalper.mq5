@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.18"
+#property version   "1.19"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -40,7 +40,7 @@ input group "Sinal"
 input ENUM_TIMEFRAMES      InpTimeframe     = PERIOD_M5;          // Tempo gráfico do sinal
 input ENUM_REF_FECHAMENTO  InpRefFechamento = REF_MAXIMA_MINIMA;  // Referência do fechamento
 input double               InpCorpoMinPct   = 50.0;               // Corpo maior que X% do candle (50 = corpo > pavios)
-input double               InpTamanhoMax    = 2000;               // Tamanho máximo do candle sinal (pontos)
+input double               InpTamanhoMax    = 1000;               // Tamanho máximo do candle sinal (pontos)
 input double               InpTamanhoMin    = 0;                  // Tamanho mínimo do candle sinal (pontos, 0 = sem filtro)
 
 input group "Entrada"
@@ -72,8 +72,8 @@ input int                  InpMargemBloqMin = 5;                  // Minutos ant
 
 input group "Gestão diária"
 input double               InpContratos     = 2;                  // Contratos por entrada
-input double               InpMetaDiaPts    = 0;                  // Meta do dia (pontos, 0 = sem meta)
-input double               InpLossDiaPts    = 1000;               // Loss máximo do dia (pontos, 0 = sem limite)
+input double               InpMetaDiaPts    = 1500;               // Meta do dia (pontos, 0 = sem meta)
+input double               InpLossDiaPts    = 500;                // Loss máximo do dia (pontos, 0 = sem limite)
 input int                  InpMaxOperacoes  = 0;                  // Máximo de operações no dia (0 = sem limite)
 input ulong                InpMagic         = 2026100;            // Número mágico
 input bool                 InpRegistrarDecisoes = false;          // Escrever no Diário o motivo de cada candle
@@ -184,7 +184,7 @@ int OnInit()
       g_parcialFeita = true;
 
    AbrirArquivo();
-   Print("CohenScalper v1.18 carregado");
+   Print("CohenScalper v1.19 carregado");
    return INIT_SUCCEEDED;
   }
 
