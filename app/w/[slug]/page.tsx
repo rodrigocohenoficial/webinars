@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { formatSlotLongo } from "@/lib/time";
 import { proximosSlots, rotuloJit } from "@/lib/schedule";
 import Inscricao, { type SlotView } from "./Inscricao";
+import PixelMeta from "@/components/PixelMeta";
+import { pixelDoWebinar } from "@/lib/pixel";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +93,7 @@ export default async function PaginaInscricao({ params }: { params: Promise<{ sl
 
   return (
     <Moldura>
+      <PixelMeta pixelId={pixelDoWebinar(w)} />
       <div className="grid items-center gap-9 lg:grid-cols-[1.15fr_1fr]">
         <div>
           {w.coverUrl ? (

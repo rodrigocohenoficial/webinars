@@ -37,6 +37,7 @@ export type WebinarForm = {
   materialLabel: string;
   materialUrl: string;
   materialAtSec: string;
+  metaPixelId: string;
 };
 
 function Secao({ titulo, ajuda, children }: { titulo: string; ajuda?: string; children: React.ReactNode }) {
@@ -508,6 +509,27 @@ export default function FormularioWebinar({ inicial }: { inicial: WebinarForm })
               <p className="ajuda">Marque o minuto em que voce ensina o material, se quiser segurar ate la.</p>
             </div>
           </div>
+        </div>
+      </Secao>
+
+      <Secao
+        titulo="Rastreamento"
+        ajuda="Use o mesmo pixel da pagina de vendas: a campanha passa a enxergar o funil inteiro, da inscricao a compra."
+      >
+        <div>
+          <label className="rotulo" htmlFor="metaPixelId">Pixel da Meta (ID)</label>
+          <input
+            id="metaPixelId"
+            name="metaPixelId"
+            className="campo"
+            inputMode="numeric"
+            placeholder="2870327729868266"
+            value={f.metaPixelId}
+            onChange={(e) => set("metaPixelId", e.target.value)}
+          />
+          <p className="ajuda">
+            PageView na inscricao e na sala, Lead na confirmacao. Vazio = o pixel padrao da conta, se houver.
+          </p>
         </div>
       </Secao>
 

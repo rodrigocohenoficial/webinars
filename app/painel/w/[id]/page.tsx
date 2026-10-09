@@ -51,6 +51,7 @@ export default async function ConfigurarWebinar({ params }: { params: Promise<{ 
     materialLabel: w.materialLabel ?? "",
     materialUrl: w.materialUrl ?? "",
     materialAtSec: w.materialAtSec !== null ? formatMinutoSegundo(w.materialAtSec) : "",
+    metaPixelId: w.metaPixelId ?? "",
   };
 
   const proximos = proximosSlots(w.rules, new Date(), 6).map((s) => s.label);

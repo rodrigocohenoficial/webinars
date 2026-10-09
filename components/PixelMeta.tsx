@@ -18,11 +18,11 @@ t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
 document,'script','https://connect.facebook.net/en_US/fbevents.js');`;
 
 /**
- * Evento Lead com eventID estavel (o id da inscricao): recarregar a pagina
- * nao conta duas vezes. Sem NEXT_PUBLIC_META_PIXEL_ID, nao faz nada — como
- * toda integracao deste sistema.
+ * PageView em toda pagina que o usa; com leadId, tambem o Lead, com eventID
+ * estavel (o id da inscricao): recarregar a pagina nao conta duas vezes.
+ * Sem pixel, nao faz nada — como toda integracao deste sistema.
  */
-export default function PixelLead({ pixelId, eventId }: { pixelId?: string; eventId: string }) {
+export default function PixelMeta({ pixelId, leadId }: { pixelId?: string; leadId?: string }) {
   useEffect(() => {
     if (!pixelId) return;
 
@@ -34,8 +34,8 @@ export default function PixelLead({ pixelId, eventId }: { pixelId?: string; even
 
     window.fbq?.("init", pixelId);
     window.fbq?.("track", "PageView");
-    window.fbq?.("track", "Lead", {}, { eventID: eventId });
-  }, [pixelId, eventId]);
+    if (leadId) window.fbq?.("track", "Lead", {}, { eventID: leadId });
+  }, [pixelId, leadId]);
 
   return null;
 }

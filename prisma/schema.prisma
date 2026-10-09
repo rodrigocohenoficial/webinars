@@ -92,6 +92,10 @@ model Webinar {
   /// a partir de que ponto do video o botao aparece (vazio = sempre)
   materialAtSec Int?
 
+  /// pixel da Meta deste webinario (o mesmo da pagina de vendas, para a
+  /// campanha enxergar o funil inteiro). Vazio = NEXT_PUBLIC_META_PIXEL_ID.
+  metaPixelId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

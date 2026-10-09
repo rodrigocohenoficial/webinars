@@ -6,6 +6,8 @@ import { trilhaDeReacoes } from "@/lib/reacoes";
 import { apoioDaSala } from "@/lib/apoio";
 import { parseVideoUrl } from "@/lib/video";
 import Sala, { type DadosSala } from "./Sala";
+import PixelMeta from "@/components/PixelMeta";
+import { pixelDoWebinar } from "@/lib/pixel";
 
 export const dynamic = "force-dynamic";
 
@@ -80,5 +82,11 @@ export default async function PaginaSala({ params }: { params: Promise<{ token: 
     })),
   };
 
-  return <Sala dados={dados} />;
+  // Quem chegou na sala vira publico de remarketing; o apresentador nao conta
+  return (
+    <>
+      {inscricao.isHost ? null : <PixelMeta pixelId={pixelDoWebinar(w)} />}
+      <Sala dados={dados} />
+    </>
+  );
 }
