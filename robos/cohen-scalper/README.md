@@ -129,11 +129,11 @@ Até 17h ganhou mais na escolha, mas empatou com 15h na prova com 26% mais negoc
 
 Candle até 1.000, meta 1.500, loss 500, última entrada 15h. Escolhidos pelo risco, não pelo resultado. Backtest único jan/2022–fev/2026, 2 contratos, sem custos: 164.058 pts (~3.280/mês, ~R$ 1.300/mês), fator de lucro 1,31, pior queda R$ 2.008 (1,6%), ~17.150 operações (~9,6 pts cada). Contra a versão sem limites (15h, sem meta, loss 1000, candle 2000): −5%.
 
-## Profit (NTSL) — `CohenScalper_Profit.ntsl`
+## Profit (NTSL) — `CohenScalper_Profit.ntsl` (v1.20)
 
 Mesma regra da v1.19, só o que foi validado (sem filtro de tendência, bloqueio de horários e FVG).
 
-1. Profit → Ferramentas → Editor de Estratégias → Nova estratégia de execução. Cole o conteúdo do arquivo e compile. Se der erro, mande o print com a linha.
-2. **Aplique em gráfico de 1 MINUTO.** O robô monta os candles de 5 min sozinho e usa o 1 min para ver recuo, retorno, parcial e stop.
-3. Backtest do Profit é por candle (sem tick). No MT5 o modo "OHLC de 1 minuto" inflou o resultado em ~3x — não compare direto com o MT5 de ticks reais. Use o backtest do Profit para conferir se as entradas batem e o **Replay** para medir.
-4. Limitações conhecidas: as ordens de saída só entram na barra seguinte à execução da entrada; o resultado do dia (meta/loss) é estimado pelos preços das ordens.
+1. Profit → Editor de Estratégias → cole o arquivo e compile. Erro aparece como `Parser[linha,coluna]`.
+2. **Gráfico de 1 MINUTO, execução Tick a Tick** (backtest e automação). O candle de 5 min é lido das barras [1]..[5] quando começa o seguinte; prazos são por horário; a saída é identificada pelo último negócio. Em OHLC funciona, mas perde o 1º minuto do candle de entrada e o recuo/retorno dentro do minuto.
+3. Parâmetros do painel não voltam ao padrão ao recompilar: confira um por um (a rodinha do mouse sobre o campo muda o valor). Nomes `Inicio`, `UltimaEntrada` e `Zerar` são reservados no NTSL.
+4. Diferenças que ficam: a ordem de entrada é stop com limite de 20 ticks; reentrada por ordem limitada no preço da entrada (mesmo preço do MT5); meta/loss do dia apurados pelos preços das ordens.
