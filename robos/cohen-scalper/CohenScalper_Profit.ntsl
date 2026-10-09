@@ -1,5 +1,5 @@
 // =====================================================================
-// CohenScalper v1.21 - NTSL (Profit)  -  mesma regra do robô do MT5
+// CohenScalper v1.22 - NTSL (Profit)  -  mesma regra do robô do MT5
 //
 // RODAR EM GRÁFICO DE 1 MINUTO do WIN, com execução TICK A TICK no
 // backtest e na automação. O código é seguro para rodar a cada negócio:
@@ -11,7 +11,8 @@
 //    que a posição mudou (o NTSL não informa o preço da ordem executada);
 //  - recuo, retorno e invalidação pela cotação atual (Close), como o MT5;
 //  - candle sinal e anterior precisam ser do mesmo pregão, como o MT5;
-//  - ordens pendentes canceladas com CancelPendingOrders ao desarmar.
+//  - ordens pendentes: o Profit cancela a que não é reenviada; com
+//    CancelarPendentes = 1 também chama CancelPendingOrders ao desarmar.
 //
 // Regra:
 //  - Sinal: candle de 5 min com corpo > 50% do tamanho, fechando acima da
@@ -50,6 +51,7 @@ input
   MaxReentradas(1);         // reentradas por sinal depois do 0x0 (0 = desligado)
   ReentradaMin(5);          // minutos para o preço voltar à entrada
   DerrapagemTicks(20);      // limite das ordens stop (ticks além do gatilho)
+  CancelarPendentes(0);     // 1 = chama CancelPendingOrders ao desarmar (teste na automação)
 
 var
   passoPreco, minutoDia, inicioMin, ultimaMin, zerarMin, ultimaData : Float;
@@ -65,6 +67,7 @@ var
   saida, pts, ptsDia, alvoPreco, distAlvo, distStop : Float;
   reRest, reDir, rePreco, reStop, reAte : Float;
   limiteDia, enviou, pendente, foi0x0 : Boolean;
+  tempoAnt, barrasVistas : Float;
 
 begin
   passoPreco := MinPriceIncrement;
@@ -76,6 +79,14 @@ begin
   inicioMin := Floor(HoraInicio / 100) * 60 + (HoraInicio - Floor(HoraInicio / 100) * 100);
   ultimaMin := Floor(HoraUltimaEntrada / 100) * 60 + (HoraUltimaEntrada - Floor(HoraUltimaEntrada / 100) * 100);
   zerarMin  := Floor(HoraZerar / 100) * 60 + (HoraZerar - Floor(HoraZerar / 100) * 100);
+
+  // Conta as barras do gráfico (uma vez por barra, mesmo rodando a cada negócio).
+  // O histórico [1]..[5] só é lido depois que existem barras suficientes.
+  if (Time <> tempoAnt) then
+  begin
+    tempoAnt := Time;
+    barrasVistas := barrasVistas + 1;
+  end;
 
   // ---------------- Novo dia ----------------
   if (Date <> ultimaData) then
@@ -204,7 +215,7 @@ begin
 
   // ---------------- Começou um candle de 5: confere o que acabou de fechar ----------------
   bucketAgora := minutoDia - (minutoDia - Floor(minutoDia / TempoSinal) * TempoSinal);
-  if (bucketAgora <> bucketAtual) then
+  if (bucketAgora <> bucketAtual) and (barrasVistas > 2 * TempoSinal) then
   begin
     bucketFechado := bucketAtual;
     bucketAtual := bucketAgora;
@@ -331,7 +342,8 @@ begin
       pendente := true
     else if pendente then
     begin
-      CancelPendingOrders;
+      if (CancelarPendentes = 1) then
+        CancelPendingOrders;
       pendente := false;
     end;
   end
