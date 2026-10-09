@@ -5,10 +5,17 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.19"
+#property version   "1.20"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
+
+enum ENUM_FORCA
+  {
+   FORCA_CORPO          = 0,   // Corpo maior que X% do candle
+   FORCA_PONTA          = 1,   // Fechou na ponta (martelo vale)
+   FORCA_CORPO_OU_PONTA = 2    // Qualquer um dos dois
+  };
 
 enum ENUM_REF_FECHAMENTO
   {
@@ -39,7 +46,9 @@ enum ENUM_FILTRO_TENDENCIA
 input group "Sinal"
 input ENUM_TIMEFRAMES      InpTimeframe     = PERIOD_M5;          // Tempo gráfico do sinal
 input ENUM_REF_FECHAMENTO  InpRefFechamento = REF_MAXIMA_MINIMA;  // Referência do fechamento
+input ENUM_FORCA           InpForca         = FORCA_CORPO;        // Força do candle sinal
 input double               InpCorpoMinPct   = 50.0;               // Corpo maior que X% do candle (50 = corpo > pavios)
+input double               InpPontaPct      = 33.0;               // Fechou na ponta: no máximo X% do candle entre o fechamento e a máx (compra) / mín (venda)
 input double               InpTamanhoMax    = 1000;               // Tamanho máximo do candle sinal (pontos)
 input double               InpTamanhoMin    = 0;                  // Tamanho mínimo do candle sinal (pontos, 0 = sem filtro)
 
@@ -184,7 +193,7 @@ int OnInit()
       g_parcialFeita = true;
 
    AbrirArquivo();
-   Print("CohenScalper v1.19 carregado");
+   Print("CohenScalper v1.20 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -519,9 +528,23 @@ int Sinal(string &motivo)
       motivo += StringFormat(" menor que o mínimo de %.0f", InpTamanhoMin);
       return 0;
      }
-   if(corpo * 100.0 <= InpCorpoMinPct * tamanho)
+   if(c1 == o1)
      {
-      motivo += StringFormat(" corpo não passa de %.0f%%", InpCorpoMinPct);
+      motivo += " sem corpo (abertura = fechamento)";
+      return 0;
+     }
+   // Força: corpo grande, ou fechamento colado na ponta a favor (martelo /
+   // estrela cadente fechando na direção). A direção vem da cor do candle.
+   bool   corpoOk  = corpo * 100.0 > InpCorpoMinPct * tamanho;
+   double ateAPonta = (c1 > o1) ? h1 - c1 : c1 - l1;
+   bool   pontaOk  = ateAPonta * 100.0 <= InpPontaPct * tamanho;
+   bool   forcaOk  = (InpForca == FORCA_CORPO) ? corpoOk :
+                     (InpForca == FORCA_PONTA) ? pontaOk : (corpoOk || pontaOk);
+   if(!forcaOk)
+     {
+      motivo += (InpForca == FORCA_PONTA)
+                ? StringFormat(" não fechou na ponta (%.0f%% do candle até a ponta)", tamanho > 0 ? ateAPonta * 100.0 / tamanho : 0)
+                : StringFormat(" corpo não passa de %.0f%%", InpCorpoMinPct);
       return 0;
      }
 

@@ -137,3 +137,7 @@ Mesma regra da v1.19, só o que foi validado (sem filtro de tendência, bloqueio
 2. **Gráfico de 1 MINUTO, execução Tick a Tick** (backtest e automação). O candle de 5 min é lido das barras [1]..[5] quando começa o seguinte; prazos são por horário; a saída é identificada pelo último negócio. Em OHLC funciona, mas perde o 1º minuto do candle de entrada e o recuo/retorno dentro do minuto.
 3. Parâmetros do painel não voltam ao padrão ao recompilar: confira um por um (a rodinha do mouse sobre o campo muda o valor). `Inicio` é palavra reservada no NTSL (por isso HoraInicio, HoraUltimaEntrada, HoraZerar).
 4. Diferenças que ficam: entrada por ordem stop com limite de 20 ticks; reentrada por ordem limitada no preço da entrada (mesmo preço do MT5, sem risco de duplicar ordem); prazo da reentrada em minutos inteiros; preços de parcial e saída lidos do último negócio (o NTSL não informa o preço executado).
+
+### Força do candle sinal (v1.20, em teste)
+
+`InpForca`: `corpo` (padrão, corpo > 50%), `ponta` (fechamento a no máximo 33% do candle da máxima na compra / da mínima na venda — o martelo que fecha na direção entra) ou `corpo ou ponta`. Os outros filtros não mudam (fechar além da máx/mín anterior, tamanho, horário). Só vira padrão se ganhar no backtest de ticks reais.
