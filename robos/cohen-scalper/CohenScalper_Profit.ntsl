@@ -1,83 +1,57 @@
-// CohenScalper v1.19c - NTSL (Profit) - mesma regra do robo do MT5
-// Rodar em grafico de 1 MINUTO do WIN. O robo monta os candles de 5 minutos.
-// Sinal: candle de 5 min com corpo > 50%, fechando acima da maxima (compra)
-// ou abaixo da minima (venda) do candle anterior, tamanho ate TamanhoMax.
-// Entrada: espera recuar RecuoPct% do candle sinal e entra quando volta a abertura.
-// Stop alem do candle sinal, parcial em Parcial pts com stop no 0x0, alvo final Alvo pts.
-// Reentrada: saiu no 0x0 e o preco voltou a entrada em ate ReentradaMin minutos.
-// Meta e loss do dia em pontos pelo preco medio (40 + 180 = 110).
+// =====================================================================
+// CohenScalper v1.19d - NTSL (Profit)  -  mesma regra do robô do MT5
+//
+// RODAR EM GRÁFICO DE 1 MINUTO do WIN. O robô monta sozinho os candles
+// de 5 minutos (TempoSinal) e usa o 1 minuto para ver o recuo e o
+// retorno à abertura, a parcial, o stop e o alvo.
+//
+// Regra:
+//  - Sinal: candle de 5 min com corpo > 50% do tamanho, fechando acima da
+//    máxima (compra) ou abaixo da mínima (venda) do candle anterior,
+//    tamanho até TamanhoMax.
+//  - Entrada: espera o candle seguinte recuar RecuoPct% do candle sinal e
+//    entra quando volta à abertura (ModoRetorno = 1). Perdeu o candle
+//    sinal ou o candle acabou sem voltar: não entra.
+//  - Stop: FolgaTicks além da mín/máx do candle sinal.
+//  - Parcial de metade em Parcial pts, stop no 0x0, alvo final Alvo pts.
+//  - Reentrada: saiu no 0x0 e o preço voltou à entrada em até
+//    ReentradaMin minutos -> entra de novo (MaxReentradas vezes).
+//  - Meta e loss do dia em pontos pelo preço médio (40 + 180 = 110).
+// =====================================================================
 input
-  TempoSinal(5);
-  CorpoMinPct(50);
-  TamanhoMax(1000);
-  TamanhoMin(0);
-  ModoRetorno(1);
-  RecuoPct(10);
-  FolgaTicks(1);
-  Parcial(40);
-  ParcialPct(50);
-  ZeroAposParcial(1);
-  Alvo(180);
-  Contratos(2);
-  Inicio(915);
-  UltimaEntrada(1500);
-  Zerar(1730);
-  MetaDia(1500);
-  LossDia(500);
-  MaxReentradas(1);
-  ReentradaMin(5);
-  DerrapagemTicks(20);
+  TempoSinal(5);            // minutos do candle sinal
+  CorpoMinPct(50);          // corpo maior que X% do candle
+  TamanhoMax(1000);         // tamanho máximo do candle sinal (pts, 0 = sem limite)
+  TamanhoMin(0);            // tamanho mínimo do candle sinal (pts, 0 = sem filtro)
+  ModoRetorno(1);           // 1 = espera recuar e voltar; 0 = a mercado na abertura
+  RecuoPct(10);             // recuo mínimo, em % do candle sinal
+  FolgaTicks(1);            // stop: ticks além da mín/máx do candle sinal
+  Parcial(40);              // pts da parcial (0 = sem parcial)
+  ParcialPct(50);           // % da posição na parcial
+  ZeroAposParcial(1);       // 1 = stop no 0x0 depois da parcial
+  Alvo(180);                // alvo final (pts)
+  Contratos(2);             // sempre par
+  HoraInicio(915);          // primeira entrada (HHMM)
+  HoraUltimaEntrada(1500);  // última entrada (HHMM)
+  HoraZerar(1730);          // zera posição (HHMM)
+  MetaDia(1500);            // meta do dia (pts pelo preço médio, 0 = sem meta)
+  LossDia(500);             // loss do dia (pts pelo preço médio, 0 = sem limite)
+  MaxReentradas(1);         // reentradas por sinal depois do 0x0 (0 = desligado)
+  ReentradaMin(5);          // minutos para o preço voltar à entrada
+  DerrapagemTicks(20);      // limite das ordens stop (ticks além do gatilho)
 
 var
-  passoPreco : Float;
-  hh : Float;
-  mm : Float;
-  minutoDia : Float;
-  resto : Float;
-  bucketId : Float;
-  bucketAtual : Float;
-  ultimaData : Float;
-  inicioMin : Float;
-  ultimaMin : Float;
-  zerarMin : Float;
-  cO : Float;
-  cH : Float;
-  cL : Float;
-  cC : Float;
-  aH : Float;
-  aL : Float;
-  temCandle : Integer;
-  temAnterior : Integer;
-  fimCandle : Integer;
-  tamanho : Float;
-  corpo : Float;
-  sinalDir : Integer;
-  armado : Integer;
-  barrasArmado : Integer;
-  precoEntrada : Float;
-  stopPlan : Float;
-  recuo : Float;
-  recuou : Integer;
-  posAberta : Integer;
-  parcialFeita : Integer;
-  saiuZerando : Integer;
-  dirPos : Integer;
-  entrada : Float;
-  stopIni : Float;
-  stopAtual : Float;
-  qtdIni : Float;
-  qtdAnt : Float;
-  qtdAgora : Float;
-  qtdParcial : Float;
-  saida : Float;
-  pts : Float;
-  ptsDia : Float;
-  reRest : Integer;
-  reDir : Integer;
-  rePreco : Float;
-  reStop : Float;
-  reBarras : Integer;
-  limiteDia : Integer;
+  passoPreco, hh, mm, minutoDia, resto, bucketId, bucketAtual : Float;
+  inicioMin, ultimaMin, zerarMin : Float;
+  cO, cH, cL, cC, aH, aL : Float;
+  temCandle, temAnterior, fimCandle : Boolean;
+  tamanho, corpo, sinalDir : Float;
+  armado, barrasArmado, precoEntrada, stopPlan, recuo : Float;
+  recuou : Boolean;
+  posAberta, parcialFeita, saiuZerando : Boolean;
+  dirPos, entrada, stopIni, stopAtual, qtdIni, qtdAnt, qtdAgora, qtdParcial : Float;
+  saida, pts, ptsDia, reRest, reDir, rePreco, reStop, reBarras : Float;
+  limiteDia, ehReentrada : Boolean;
 
 begin
   passoPreco := MinPriceIncrement;
@@ -86,39 +60,35 @@ begin
   hh := Floor(Time / 100);
   mm := Time - hh * 100;
   minutoDia := hh * 60 + mm;
-  inicioMin := Floor(Inicio / 100) * 60 + (Inicio - Floor(Inicio / 100) * 100);
-  ultimaMin := Floor(UltimaEntrada / 100) * 60 + (UltimaEntrada - Floor(UltimaEntrada / 100) * 100);
-  zerarMin := Floor(Zerar / 100) * 60 + (Zerar - Floor(Zerar / 100) * 100);
+  inicioMin := Floor(HoraInicio / 100) * 60 + (HoraInicio - Floor(HoraInicio / 100) * 100);
+  ultimaMin := Floor(HoraUltimaEntrada / 100) * 60 + (HoraUltimaEntrada - Floor(HoraUltimaEntrada / 100) * 100);
+  zerarMin  := Floor(HoraZerar / 100) * 60 + (HoraZerar - Floor(HoraZerar / 100) * 100);
 
-  // Novo dia: zera tudo
-  if (Date <> ultimaData) then
+  // ---------------- Novo dia: zera tudo ----------------
+  if (Date <> Date[1]) then
   begin
-    ultimaData := Date;
     ptsDia := 0;
-    temCandle := 0;
-    temAnterior := 0;
+    temCandle := false;
+    temAnterior := false;
     armado := 0;
     reDir := 0;
     bucketAtual := -1;
   end;
 
-  limiteDia := 0;
-  if (MetaDia > 0) and (ptsDia >= MetaDia) then
-    limiteDia := 1;
-  if (LossDia > 0) and (ptsDia <= (0 - LossDia)) then
-    limiteDia := 1;
+  limiteDia := ((MetaDia > 0) and (ptsDia >= MetaDia)) or ((LossDia > 0) and (ptsDia <= -LossDia));
 
-  // Posicao aberta
+  // ---------------- Posição aberta ----------------
   if (Position <> 0) then
   begin
     qtdAgora := Abs(Position);
 
-    if (posAberta = 0) then
+    if (not posAberta) then
     begin
-      posAberta := 1;
-      parcialFeita := 0;
-      saiuZerando := 0;
-      if (Position > 0) then
+      // Primeira barra com a posição: guarda entrada e stop.
+      posAberta := true;
+      parcialFeita := false;
+      saiuZerando := false;
+      if IsBought then
       begin
         dirPos := 1;
         entrada := BuyPrice;
@@ -131,126 +101,106 @@ begin
       qtdIni := qtdAgora;
       qtdAnt := qtdAgora;
       stopIni := stopPlan;
-      if (reDir <> 0) then
+      ehReentrada := (reDir <> 0);
+      if ehReentrada then
         reRest := reRest - 1;
       armado := 0;
       reDir := 0;
     end;
 
-    // Saiu parte da posicao: foi a parcial
-    if (qtdAgora < qtdAnt) and (parcialFeita = 0) then
+    // Saiu parte da posição: foi a parcial.
+    if (qtdAgora < qtdAnt) and (not parcialFeita) then
     begin
-      parcialFeita := 1;
+      parcialFeita := true;
       ptsDia := ptsDia + Parcial * (qtdAnt - qtdAgora) / qtdIni;
     end;
     qtdAnt := qtdAgora;
 
-    if (parcialFeita = 1) and (ZeroAposParcial = 1) then
+    if parcialFeita and (ZeroAposParcial = 1) then
       stopAtual := entrada
     else
       stopAtual := stopIni;
 
     if (minutoDia >= zerarMin) then
     begin
-      saiuZerando := 1;
+      saiuZerando := true;
       ClosePosition;
+    end
+    else if (dirPos = 1) then
+    begin
+      if (not parcialFeita) and (Parcial > 0) and (qtdParcial > 0) then
+        SellToCoverLimit(entrada + Parcial, qtdParcial)
+      else
+        SellToCoverLimit(entrada + Alvo, qtdAgora);
+      SellToCoverStop(stopAtual, stopAtual - DerrapagemTicks * passoPreco, qtdAgora);
     end
     else
     begin
-      if (dirPos = 1) then
-      begin
-        if (parcialFeita = 0) and (Parcial > 0) and (qtdParcial > 0) then
-          SellToCoverLimit(entrada + Parcial, qtdParcial)
-        else
-          SellToCoverLimit(entrada + Alvo, qtdAgora);
-        SellToCoverStop(stopAtual, stopAtual - DerrapagemTicks * passoPreco, qtdAgora);
-      end
+      if (not parcialFeita) and (Parcial > 0) and (qtdParcial > 0) then
+        BuyToCoverLimit(entrada - Parcial, qtdParcial)
       else
-      begin
-        if (parcialFeita = 0) and (Parcial > 0) and (qtdParcial > 0) then
-          BuyToCoverLimit(entrada - Parcial, qtdParcial)
-        else
-          BuyToCoverLimit(entrada - Alvo, qtdAgora);
-        BuyToCoverStop(stopAtual, stopAtual + DerrapagemTicks * passoPreco, qtdAgora);
-      end;
+        BuyToCoverLimit(entrada - Alvo, qtdAgora);
+      BuyToCoverStop(stopAtual, stopAtual + DerrapagemTicks * passoPreco, qtdAgora);
     end;
   end
-  else
+  else if posAberta then  // ---------------- Posição acabou de fechar ----------------
   begin
-    // Posicao acabou de fechar
-    if (posAberta = 1) then
+    posAberta := false;
+    if saiuZerando then
+      saida := Close
+    else if parcialFeita then
     begin
-      posAberta := 0;
-      if (saiuZerando = 1) then
-        saida := Close
+      if ((dirPos = 1) and (High >= entrada + Alvo)) or ((dirPos = -1) and (Low <= entrada - Alvo)) then
+        saida := entrada + dirPos * Alvo
       else
-      begin
-        if (parcialFeita = 1) then
-        begin
-          saida := stopAtual;
-          if (dirPos = 1) and (High >= entrada + Alvo) then
-            saida := entrada + Alvo;
-          if (dirPos = -1) and (Low <= entrada - Alvo) then
-            saida := entrada - Alvo;
-        end
-        else
-          saida := stopIni;
-      end;
+        saida := stopAtual;
+    end
+    else
+      saida := stopIni;
 
-      pts := (saida - entrada) * dirPos * qtdAnt / qtdIni;
-      ptsDia := ptsDia + pts;
-      if (MetaDia > 0) and (ptsDia >= MetaDia) then
-        limiteDia := 1;
-      if (LossDia > 0) and (ptsDia <= (0 - LossDia)) then
-        limiteDia := 1;
+    pts := (saida - entrada) * dirPos * qtdAnt / qtdIni;
+    ptsDia := ptsDia + pts;
+    limiteDia := ((MetaDia > 0) and (ptsDia >= MetaDia)) or ((LossDia > 0) and (ptsDia <= -LossDia));
 
-      // Saiu no 0x0: arma a reentrada no preco da entrada
-      if (parcialFeita = 1) and (ZeroAposParcial = 1) and (saida = entrada) and (reRest > 0) and (saiuZerando = 0) then
-      begin
-        reDir := dirPos;
-        rePreco := entrada;
-        reStop := stopIni;
-        reBarras := 0;
-      end;
+    // Saiu no 0x0: arma a reentrada no preço da entrada.
+    if parcialFeita and (ZeroAposParcial = 1) and (saida = entrada) and (reRest > 0) and (not saiuZerando) then
+    begin
+      reDir := dirPos;
+      rePreco := entrada;
+      reStop := stopIni;
+      reBarras := 0;
     end;
   end;
 
-  // Reentrada depois do 0x0
+  // ---------------- Reentrada depois do 0x0 ----------------
   if (Position = 0) and (reDir <> 0) then
   begin
     reBarras := reBarras + 1;
-    if (reBarras > ReentradaMin) or (limiteDia = 1) or (minutoDia > ultimaMin) then
-      reDir := 0;
-    if (reDir = 1) and (Low <= reStop) then
-      reDir := 0;
-    if (reDir = -1) and (High >= reStop) then
+    if (reBarras > ReentradaMin) or limiteDia or (minutoDia > ultimaMin) or
+       ((reDir = 1) and (Low <= reStop)) or ((reDir = -1) and (High >= reStop)) then
       reDir := 0;
   end;
 
-  // Entrada no retorno: acompanha o candle de entrada
+  // ---------------- Entrada no retorno: acompanha o candle de entrada ----------------
   if (Position = 0) and (armado <> 0) then
   begin
     barrasArmado := barrasArmado + 1;
     if (barrasArmado = 1) then
-      precoEntrada := Open;
+      precoEntrada := Open;   // abertura do candle de entrada
 
     if ((armado = 1) and (Low <= stopPlan)) or ((armado = -1) and (High >= stopPlan)) then
-      armado := 0
+      armado := 0            // perdeu o candle sinal antes de entrar
     else
     begin
-      if (recuou = 0) then
-      begin
-        if (armado = 1) and (Low <= precoEntrada - recuo) then
-          recuou := 1;
-        if (armado = -1) and (High >= precoEntrada + recuo) then
-          recuou := 1;
-      end;
+      if (not recuou) then
+        if ((armado = 1) and (Low <= precoEntrada - recuo)) or ((armado = -1) and (High >= precoEntrada + recuo)) then
+          recuou := true;
       if (barrasArmado >= TempoSinal) then
-        armado := 0;
+        armado := 0;         // o candle de entrada acabou sem voltar
     end;
   end;
 
-  // Monta o candle de 5 minutos
+  // ---------------- Monta o candle de 5 minutos ----------------
   resto := minutoDia - Floor(minutoDia / TempoSinal) * TempoSinal;
   bucketId := minutoDia - resto;
   if (bucketId <> bucketAtual) then
@@ -259,42 +209,42 @@ begin
     cO := Open;
     cH := High;
     cL := Low;
-    temCandle := 1;
+    temCandle := true;
   end
   else
   begin
-    if (High > cH) then
-      cH := High;
-    if (Low < cL) then
-      cL := Low;
+    if (High > cH) then cH := High;
+    if (Low < cL) then cL := Low;
   end;
   cC := Close;
-  fimCandle := 0;
-  if (temCandle = 1) and (resto = TempoSinal - 1) then
-    fimCandle := 1;
+  fimCandle := temCandle and (resto = TempoSinal - 1);
 
-  // Candle de 5 fechou: confere o sinal
-  if (fimCandle = 1) then
+  // ---------------- Candle de 5 fechou: confere o sinal ----------------
+  if fimCandle then
   begin
     sinalDir := 0;
     tamanho := cH - cL;
     corpo := Abs(cC - cO);
-    if (temAnterior = 1) and (tamanho > 0) and ((TamanhoMax <= 0) or (tamanho <= TamanhoMax)) and ((TamanhoMin <= 0) or (tamanho >= TamanhoMin)) and (corpo * 100 > CorpoMinPct * tamanho) then
+    if temAnterior and (tamanho > 0) and
+       ((TamanhoMax <= 0) or (tamanho <= TamanhoMax)) and
+       ((TamanhoMin <= 0) or (tamanho >= TamanhoMin)) and
+       (corpo * 100 > CorpoMinPct * tamanho) then
     begin
       if (cC > cO) and (cC > aH) then
-        sinalDir := 1;
-      if (cC < cO) and (cC < aL) then
+        sinalDir := 1
+      else if (cC < cO) and (cC < aL) then
         sinalDir := -1;
     end;
 
-    // O candle de entrada comeca no minuto seguinte
-    if (sinalDir <> 0) and (Position = 0) and (limiteDia = 0) and (minutoDia + 1 >= inicioMin) and (minutoDia + 1 <= ultimaMin) and (minutoDia + 1 < zerarMin) then
+    // Candle de entrada começa no minuto seguinte.
+    if (sinalDir <> 0) and (Position = 0) and (not limiteDia) and
+       (minutoDia + 1 >= inicioMin) and (minutoDia + 1 <= ultimaMin) and (minutoDia + 1 < zerarMin) then
     begin
       reDir := 0;
       reRest := MaxReentradas;
       precoEntrada := cC;
       recuo := tamanho * RecuoPct / 100;
-      recuou := 0;
+      recuou := false;
       barrasArmado := 0;
       if (sinalDir = 1) then
         stopPlan := cL - FolgaTicks * passoPreco
@@ -315,29 +265,26 @@ begin
 
     aH := cH;
     aL := cL;
-    temAnterior := 1;
+    temAnterior := true;
   end;
 
-  // Ordens de entrada para a proxima barra
-  if (Position = 0) and (limiteDia = 0) then
+  // ---------------- Ordens de entrada para a próxima barra ----------------
+  if (Position = 0) and (not limiteDia) then
   begin
-    if (armado <> 0) and (recuou = 1) then
+    if (armado <> 0) and recuou then
     begin
       if (armado = 1) then
         BuyStop(precoEntrada, precoEntrada + DerrapagemTicks * passoPreco, Contratos)
       else
         SellShortStop(precoEntrada, precoEntrada - DerrapagemTicks * passoPreco, Contratos);
     end
-    else
+    else if (reDir <> 0) then
     begin
-      if (reDir <> 0) then
-      begin
-        stopPlan := reStop;
-        if (reDir = 1) then
-          BuyLimit(rePreco, Contratos)
-        else
-          SellShortLimit(rePreco, Contratos);
-      end;
+      stopPlan := reStop;
+      if (reDir = 1) then
+        BuyLimit(rePreco, Contratos)
+      else
+        SellShortLimit(rePreco, Contratos);
     end;
   end;
 end;
