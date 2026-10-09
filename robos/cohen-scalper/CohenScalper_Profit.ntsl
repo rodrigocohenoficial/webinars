@@ -1,5 +1,5 @@
 // =====================================================================
-// CohenScalper v1.19d - NTSL (Profit)  -  mesma regra do robô do MT5
+// CohenScalper v1.19e - NTSL (Profit)  -  mesma regra do robô do MT5
 //
 // RODAR EM GRÁFICO DE 1 MINUTO do WIN. O robô monta sozinho os candles
 // de 5 minutos (TempoSinal) e usa o 1 minuto para ver o recuo e o
@@ -148,15 +148,10 @@ begin
     posAberta := false;
     if saiuZerando then
       saida := Close
-    else if parcialFeita then
-    begin
-      if ((dirPos = 1) and (High >= entrada + Alvo)) or ((dirPos = -1) and (Low <= entrada - Alvo)) then
-        saida := entrada + dirPos * Alvo
-      else
-        saida := stopAtual;
-    end
+    else if ((dirPos = 1) and (High >= entrada + Alvo)) or ((dirPos = -1) and (Low <= entrada - Alvo)) then
+      saida := entrada + dirPos * Alvo   // bateu o alvo (com ou sem parcial antes)
     else
-      saida := stopIni;
+      saida := stopAtual;                // stop inicial, ou 0x0 depois da parcial
 
     pts := (saida - entrada) * dirPos * qtdAnt / qtdIni;
     ptsDia := ptsDia + pts;
