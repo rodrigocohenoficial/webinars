@@ -1,4 +1,4 @@
-# CohenScalper (MQL5) — v1.17
+# CohenScalper (MQL5) — v1.18
 
 Scalper de price action. Sem indicadores. Uso próprio em backtest e demo antes de qualquer versão para alunos (depois porta para NTSL).
 
@@ -93,10 +93,10 @@ A mesma configuração ficou em 1º lugar nos dois períodos. Tamanho máximo de
 | Bloquear horários | não | Liga o bloqueio da linha abaixo |
 | Horários sem entrada | 09:30,10:00,10:30,11:00,11:30 | Separados por vírgula |
 | Margem | 5 min | Antes e depois de cada horário |
-| Última entrada | 1300 | HHMM, otimizável (ex.: 1300 a 1700) |
+| Última entrada | 1500 | HHMM, otimizável (ex.: 1300 a 1700) |
 | Contratos | 2 | Sempre par |
-| Meta do dia | 500 pts | Preço médio. 0 desliga |
-| Loss do dia | 500 pts | Preço médio. 0 desliga |
+| Meta do dia | 0 (sem meta) | Preço médio. Meta de 500 cortava os dias bons |
+| Loss do dia | 1000 pts | Preço médio. 750–1500 dão o mesmo resultado |
 | Reentradas | 1 | Depois de sair no 0x0. 0 desliga |
 
 ## WIN x WDO
@@ -112,3 +112,15 @@ Os padrões do robô são de WIN. No WDO, rode outra instância trocando:
 | Loss do dia | 500 | 15 |
 
 A folga do stop está em ticks e serve para os dois.
+
+### Horário, meta e loss (v1.18)
+
+Escolha em 2022–2024, prova em jan/2025–fev/2026, 2 contratos, sem custos:
+
+| Última entrada · meta · loss | Escolha (36 meses) | Prova (14 meses) | Pior queda na prova |
+|---|---|---|---|
+| 13h · 500 · 500 (antigo) | abaixo do top 20 | abaixo do top 20 | — |
+| **15h · sem meta · 1000** | 120.055 pts | 53.278 pts (~3.800/mês) | 0,75% |
+| 17h · sem meta · 1000 | 158.528 pts | 52.772 pts | 1,01% |
+
+Até 17h ganhou mais na escolha, mas empatou com 15h na prova com 26% mais negociações (mais custo) e queda maior. Ficou 15h.
