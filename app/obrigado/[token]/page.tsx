@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatSlotLongo } from "@/lib/time";
 import LinkPessoal from "./LinkPessoal";
-import PixelLead from "./PixelLead";
+import PixelMeta from "@/components/PixelMeta";
+import { pixelDoWebinar } from "@/lib/pixel";
 import EntrarJa from "./EntrarJa";
 import { comecaJa } from "@/lib/schedule";
 
@@ -37,7 +38,7 @@ export default async function Obrigado({ params }: { params: Promise<{ token: st
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-xl flex-col justify-center px-5 py-10">
-      <PixelLead pixelId={process.env.NEXT_PUBLIC_META_PIXEL_ID} eventId={inscricao.id} />
+      <PixelMeta pixelId={pixelDoWebinar(w)} leadId={inscricao.id} />
       {direto ? <EntrarJa link={`/sala/${inscricao.token}`} /> : null}
 
       <div className="cartao space-y-6">

@@ -9,6 +9,7 @@ import { inteiro, ligado, slugificar, texto, textoOuNulo } from "@/lib/texto";
 import { buscarInfoDoVideo, parseVideoUrl, urlCanonica } from "@/lib/video";
 import { parseDaysOfWeek } from "@/lib/schedule";
 import { normalizarTelefoneBR } from "@/lib/phone";
+import { pixelValido } from "@/lib/pixel";
 
 /**
  * Armadilha 9.9: nenhuma destas acoes lanca excecao para erro previsivel.
@@ -160,6 +161,12 @@ export async function salvarWebinar(_prev: EstadoForm, formData: FormData): Prom
     return { erro: "O material aparece depois do fim do video. Ninguem veria." };
   }
 
+  const pixelBruto = texto(formData.get("metaPixelId"));
+  const metaPixelId = pixelBruto ? pixelValido(pixelBruto) : null;
+  if (pixelBruto && !metaPixelId) {
+    return { erro: "O ID do pixel e so o numero, sem codigo em volta. Ex.: 2870327729868266." };
+  }
+
   const published = ligado(formData.get("published"));
   if (published && !videoUrl) {
     // Nao e proibido: inscricoes podem abrir antes de a gravacao existir.
@@ -200,6 +207,7 @@ export async function salvarWebinar(_prev: EstadoForm, formData: FormData): Prom
     materialLabel: textoOuNulo(formData.get("materialLabel")),
     materialUrl,
     materialAtSec,
+    metaPixelId,
   };
 
   try {

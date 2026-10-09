@@ -63,8 +63,10 @@ URL e a tela de Desempenho te diz a taxa de comparecimento por origem — não s
 se inscreveram, quantos **apareceram**. São coisas diferentes e a segunda é a que
 importa.
 
-Pixel da Meta: coloque `NEXT_PUBLIC_META_PIXEL_ID` e o evento `Lead` dispara na tela
-de obrigado, com ID estável — recarregar a página não conta duas vezes.
+Pixel da Meta: cada webinário tem o seu, no painel (seção Rastreamento) — use o mesmo
+da página de vendas. `PageView` na inscrição e na sala, `Lead` na tela de obrigado, com
+ID estável: recarregar a página não conta duas vezes. Webinário sem pixel próprio usa
+`NEXT_PUBLIC_META_PIXEL_ID`, se houver.
 
 ---
 

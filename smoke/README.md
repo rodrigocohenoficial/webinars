@@ -42,6 +42,8 @@ O que cada um prova:
 
 | `comeca-agora.mjs` | 0 minutos no painel vira "Começa agora" · a sessão começa em segundos, com folga para chegar antes do primeiro segundo · a confirmação segue sozinha para a sala · o aviso de "começou" não sai para quem já está dentro · inscrições no mesmo instante caem na mesma sessão |
 
+| `pixel.mjs` | pixel da Meta por webinário · PageView na inscrição e na sala · Lead na confirmação com eventID = id da inscrição · sala não repete o Lead · sem pixel o script nem carrega · painel recusa código no lugar do ID |
+
 | `reacoes.mjs` | os quatro símbolos e só eles · 5.2 no segundo da reação · sobe e some sozinha · reação de uma sessão reaparece no minuto dela na seguinte · quem entra no meio não leva o histórico na cara |
 
 | `celular.mjs` | em 390px e 360px: a página não desliza de lado, o título não encosta na borda, a barra de reações fica abaixo do vídeo, o campo de escrever cabe |
