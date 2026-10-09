@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.20"
+#property version   "1.21"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -189,11 +189,20 @@ int OnInit()
 
    // Se o robô reiniciar com a posição já reduzida, a parcial já foi feita.
    ulong t; long tipo; double vol, preco, sl, tp;
-   if(BuscarPosicao(t, tipo, vol, preco, sl, tp) && vol < AjustarVolume(InpContratos))
-      g_parcialFeita = true;
+   if(BuscarPosicao(t, tipo, vol, preco, sl, tp))
+     {
+      if(vol < AjustarVolume(InpContratos))
+         g_parcialFeita = true;
+      // Recompilou ou reiniciou com posição aberta: recupera o stop guardado.
+      if(GlobalVariableCheck(NomeStopGuardado()))
+        {
+         g_stopPlanejado = GlobalVariableGet(NomeStopGuardado());
+         PrintFormat("Posição aberta encontrada: stop recuperado em %.0f", g_stopPlanejado);
+        }
+     }
 
    AbrirArquivo();
-   Print("CohenScalper v1.20 carregado");
+   Print("CohenScalper v1.21 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -226,6 +235,19 @@ void OnDeinit(const int reason)
 double OnTester()
   {
    return g_totalPts;
+  }
+
+// Stop da operação guardado no terminal: sobrevive a recompilar, trocar
+// parâmetros ou reiniciar o MT5 com a posição aberta.
+string NomeStopGuardado()
+  {
+   return StringFormat("CohenScalper_%s_%I64u_stop", _Symbol, InpMagic);
+  }
+
+void GuardarStop()
+  {
+   if(!MQLInfoInteger(MQL_TESTER))
+      GlobalVariableSet(NomeStopGuardado(), g_stopPlanejado);
   }
 
 // Valor do ponto por contrato, pela tabela da B3.
@@ -332,6 +354,7 @@ void MonitorarReentrada(int minutoAgora)
    g_reDir = 0;
    g_reRestantes--;
    g_stopPlanejado    = g_reStop;
+   GuardarStop();
    g_precoReferencia  = (direcao > 0) ? ask : bid;
    g_parcialFeita     = false;
    g_avisouSemStop    = false;
@@ -597,6 +620,7 @@ void Entrar(int direcao)
          return;   // abriu com gap além do stop
         }
       g_stopPlanejado   = stop;
+      GuardarStop();
       g_precoReferencia = preco;
       if(direcao > 0)
          trade.Buy(vol, _Symbol, 0, 0, 0, "abertura");
@@ -625,6 +649,7 @@ void Entrar(int direcao)
       recuo = (InpUnidadeRecuo == RECUO_PCT_CANDLE) ? (h1 - l1) * InpRecuo / 100.0 : InpRecuo;
 
    g_stopPlanejado = stop;
+   GuardarStop();
    g_retornoDir    = direcao;
    g_retornoPreco  = abertura;
    g_retornoRecuo  = MathMax(ArredondarPreco(recuo), g_tick);
@@ -741,7 +766,10 @@ void GerenciarPosicao(int minutoAgora)
    if(!BuscarPosicao(ticket, tipo, volume, preco, sl, tp))
      {
       if(g_posId != 0)
+        {
          RegistrarOperacao(g_posId);   // a posição acabou de fechar
+         GlobalVariableDel(NomeStopGuardado());
+        }
       g_posId = 0;
       g_parcialFeita = false;
       return;
