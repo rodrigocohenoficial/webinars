@@ -135,5 +135,5 @@ Mesma regra da v1.19, só o que foi validado (sem filtro de tendência, bloqueio
 
 1. Profit → Editor de Estratégias → cole o arquivo e compile. Erro aparece como `Parser[linha,coluna]`.
 2. **Gráfico de 1 MINUTO, execução Tick a Tick** (backtest e automação). O candle de 5 min é lido das barras [1]..[5] quando começa o seguinte; prazos são por horário; a saída é identificada pelo último negócio. Em OHLC funciona, mas perde o 1º minuto do candle de entrada e o recuo/retorno dentro do minuto.
-3. Parâmetros do painel não voltam ao padrão ao recompilar: confira um por um (a rodinha do mouse sobre o campo muda o valor). Nomes `Inicio`, `UltimaEntrada` e `Zerar` são reservados no NTSL.
+3. Parâmetros do painel não voltam ao padrão ao recompilar: confira um por um (a rodinha do mouse sobre o campo muda o valor). `Inicio` é palavra reservada no NTSL (por isso HoraInicio, HoraUltimaEntrada, HoraZerar).
 4. Diferenças que ficam: a ordem de entrada é stop com limite de 20 ticks; reentrada por ordem limitada no preço da entrada (mesmo preço do MT5); meta/loss do dia apurados pelos preços das ordens.
