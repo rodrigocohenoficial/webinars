@@ -1,5 +1,5 @@
 // =====================================================================
-// CohenScalper v1.23 - NTSL (Profit)  -  mesma regra do robô do MT5
+// CohenScalper v1.24 - NTSL (Profit)  -  mesma regra do robô do MT5
 //
 // RODAR EM GRÁFICO DE 1 MINUTO do WIN, com execução TICK A TICK no
 // backtest e na automação. O código é seguro para rodar a cada negócio:
@@ -11,7 +11,10 @@
 //    contagem de execuções;
 //  - preços de parcial e saída = último negócio (Close) na execução em
 //    que a posição mudou (o NTSL não informa o preço da ordem executada);
-//  - recuo, retorno e invalidação pela cotação atual (Close), como o MT5;
+//  - recuo e perda do candle sinal pela mínima/máxima do minuto (o candle
+//    de entrada começa junto com o minuto, então só conta preço depois de
+//    armar; funciona também com a estratégia no gráfico, por candle);
+//  - reentrada invalidada pela cotação atual (Close), como o MT5;
 //  - candle sinal e anterior precisam ser do mesmo pregão, como o MT5;
 //  - ordens pendentes: o Profit cancela a que não é reenviada; com
 //    CancelarPendentes = 1 também chama CancelPendingOrders ao desarmar.
@@ -34,7 +37,9 @@
 // =====================================================================
 input
   TempoSinal(5);            // minutos do candle sinal
+  Forca(0);                 // 0 = corpo > CorpoMinPct; 1 = fechou na ponta (martelo); 2 = qualquer um
   CorpoMinPct(50);          // corpo maior que X% do candle
+  PontaPct(33);             // na ponta: no máximo X% do candle entre o fechamento e a máx (compra) / mín (venda)
   TamanhoMax(1000);         // tamanho máximo do candle sinal (pts, 0 = sem limite)
   TamanhoMin(0);            // tamanho mínimo do candle sinal (pts, 0 = sem filtro)
   ModoRetorno(1);           // 1 = espera recuar e voltar; 0 = a mercado na abertura
@@ -60,7 +65,8 @@ var
   bucketAgora, bucketAtual : Float;
   gO, gH, gL, gC, gData : Float;
   gCompleto : Boolean;
-  cO, cH, cL, cC, aH, aL, cData, aData, tamanho, corpo : Float;
+  cO, cH, cL, cC, aH, aL, cData, aData, tamanho, corpo, ateAPonta : Float;
+  corpoOk, pontaOk, forcaOk : Boolean;
   temAnterior : Boolean;
   sinalDir, armado, bucketEntrada, precoEntrada, stopPlan, recuo : Float;
   recuou : Boolean;
@@ -226,11 +232,23 @@ begin
       sinalDir := 0;
       tamanho := cH - cL;
       corpo := Abs(cC - cO);
+      // Força: corpo grande, ou fechamento colado na ponta a favor (martelo).
+      corpoOk := (corpo * 100 > CorpoMinPct * tamanho);
+      if (cC > cO) then
+        ateAPonta := cH - cC
+      else
+        ateAPonta := cC - cL;
+      pontaOk := (ateAPonta * 100 <= PontaPct * tamanho);
+      if (Forca = 1) then
+        forcaOk := pontaOk
+      else if (Forca = 2) then
+        forcaOk := corpoOk or pontaOk
+      else
+        forcaOk := corpoOk;
       // Candle sinal e anterior do mesmo pregão, e o de entrada também (como o MT5).
-      if temAnterior and (aData = cData) and (cData = Date) and (tamanho > 0) and
+      if temAnterior and (aData = cData) and (cData = Date) and (tamanho > 0) and (cC <> cO) and
          ((TamanhoMax <= 0) or (tamanho <= TamanhoMax)) and
-         ((TamanhoMin <= 0) or (tamanho >= TamanhoMin)) and
-         (corpo * 100 > CorpoMinPct * tamanho) then
+         ((TamanhoMin <= 0) or (tamanho >= TamanhoMin)) and forcaOk then
       begin
         if (cC > cO) and (cC > aH) then
           sinalDir := 1
@@ -289,11 +307,11 @@ begin
   begin
     if (bucketAtual <> bucketEntrada) then
       armado := 0
-    else if ((armado = 1) and (Close <= stopPlan)) or ((armado = -1) and (Close >= stopPlan)) then
+    else if ((armado = 1) and (Low <= stopPlan)) or ((armado = -1) and (High >= stopPlan)) then
       armado := 0                     // perdeu o candle sinal antes de entrar
     else if (not recuou) then
     begin
-      if ((armado = 1) and (Close <= precoEntrada - recuo)) or ((armado = -1) and (Close >= precoEntrada + recuo)) then
+      if ((armado = 1) and (Low <= precoEntrada - recuo)) or ((armado = -1) and (High >= precoEntrada + recuo)) then
         recuou := true;
     end;
   end;
