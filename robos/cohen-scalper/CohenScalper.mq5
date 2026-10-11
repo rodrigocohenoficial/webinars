@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.22"
+#property version   "1.23"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -132,7 +132,7 @@ double   g_rePts = 0;
 int      g_ticksDiag = 0, g_ticksIncoerentes = 0;
 double   g_maiorIncoerencia = 0;
 datetime g_tMaiorIncoerencia = 0;
-int      g_execDiag = 0, g_execLonge = 0;
+int      g_execDiag = 0, g_execLonge = 0, g_execSemOrdem = 0;
 double   g_desvioTotal = 0, g_desvioLonge = 0;   // pontos pelo preço médio; + = contra, - = a favor
 
 // Reentrada: saiu no 0x0 depois da parcial e o preço voltou à entrada -> entra de novo,
@@ -211,7 +211,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.22 carregado");
+   Print("CohenScalper v1.23 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -236,9 +236,9 @@ void OnDeinit(const int reason)
       PrintFormat("Reentradas: %d operações, %.0f pts (já incluídas no total)", g_reOps, g_rePts);
    if(g_viradas > 0)
       PrintFormat("ATENÇÃO: %d posições atravessaram a noite e foram zeradas no dia seguinte", g_viradas);
-   PrintFormat("Execução: %d execuções a mais de %.0f pts do preço da ordem, somando %.0f pts contra (negativo = a favor) | " +
-               "desvio de todas as execuções: %.0f pts | resultado se executasse no preço da ordem: %.0f pts",
-               g_execLonge, DesvioLimite(), g_desvioLonge, g_desvioTotal, g_totalPts + g_desvioTotal);
+   PrintFormat("Execução: %d execuções medidas (%d sem preço da ordem) | %d a mais de %.0f pts do preço da ordem, somando %.0f pts contra (negativo = a favor) | " +
+               "desvio de todas: %.0f pts | resultado se executasse no preço da ordem: %.0f pts",
+               g_execDiag, g_execSemOrdem, g_execLonge, DesvioLimite(), g_desvioLonge, g_desvioTotal, g_totalPts + g_desvioTotal);
    if(g_ticksDiag > 0)
       PrintFormat("Série: %d de %d ticks (%.2f%%) com último negócio fora do bid/ask por mais de %.0f pts | maior: %.0f pts em %s",
                   g_ticksIncoerentes, g_ticksDiag, 100.0 * g_ticksIncoerentes / g_ticksDiag, DesvioLimite(),
@@ -1097,29 +1097,48 @@ void MedirExecucao(long id)
   {
    if(!HistorySelectByPosition(id))
       return;
+   // Primeiro guarda os negócios; depois busca cada ordem (HistoryOrderSelect
+   // troca a lista de ordens selecionadas).
+   int n = HistoryDealsTotal();
+   ulong    ordens[];
+   double   precos[], volumes[], lados[];
+   datetime tempos[];
+   ArrayResize(ordens, n); ArrayResize(precos, n); ArrayResize(volumes, n);
+   ArrayResize(lados, n);  ArrayResize(tempos, n);
    double volEntrada = 0;
-   for(int i = 0; i < HistoryDealsTotal(); i++)
-     {
-      ulong deal = HistoryDealGetTicket(i);
-      if(deal > 0 && HistoryDealGetInteger(deal, DEAL_ENTRY) == DEAL_ENTRY_IN)
-         volEntrada += HistoryDealGetDouble(deal, DEAL_VOLUME);
-     }
-   if(volEntrada <= 0)
-      return;
-
-   for(int i = 0; i < HistoryDealsTotal(); i++)
+   int k = 0;
+   for(int i = 0; i < n; i++)
      {
       ulong deal = HistoryDealGetTicket(i);
       if(deal == 0)
          continue;
-      ulong  ordem      = (ulong)HistoryDealGetInteger(deal, DEAL_ORDER);
-      double precoOrdem = HistoryOrderGetDouble(ordem, ORDER_PRICE_OPEN);
-      double preco      = HistoryDealGetDouble(deal, DEAL_PRICE);
-      if(precoOrdem <= 0 || preco <= 0)
+      ordens[k]  = (ulong)HistoryDealGetInteger(deal, DEAL_ORDER);
+      precos[k]  = HistoryDealGetDouble(deal, DEAL_PRICE);
+      volumes[k] = HistoryDealGetDouble(deal, DEAL_VOLUME);
+      lados[k]   = (HistoryDealGetInteger(deal, DEAL_TYPE) == DEAL_TYPE_BUY) ? 1 : -1;
+      tempos[k]  = (datetime)HistoryDealGetInteger(deal, DEAL_TIME);
+      if(HistoryDealGetInteger(deal, DEAL_ENTRY) == DEAL_ENTRY_IN)
+         volEntrada += volumes[k];
+      k++;
+     }
+   if(volEntrada <= 0)
+      return;
+
+   for(int i = 0; i < k; i++)
+     {
+      if(ordens[i] == 0 || !HistoryOrderSelect(ordens[i]))
+        {
+         g_execSemOrdem++;
          continue;
-      double lado   = (HistoryDealGetInteger(deal, DEAL_TYPE) == DEAL_TYPE_BUY) ? 1 : -1;
-      double desvio = (preco - precoOrdem) * lado;   // + = pior que a ordem
-      double pts    = desvio * HistoryDealGetDouble(deal, DEAL_VOLUME) / volEntrada;
+        }
+      double precoOrdem = HistoryOrderGetDouble(ordens[i], ORDER_PRICE_OPEN);
+      if(precoOrdem <= 0 || precos[i] <= 0)
+        {
+         g_execSemOrdem++;
+         continue;
+        }
+      double desvio = (precos[i] - precoOrdem) * lados[i];   // + = pior que a ordem
+      double pts    = desvio * volumes[i] / volEntrada;
       g_execDiag++;
       g_desvioTotal += pts;
       if(MathAbs(desvio) <= DesvioLimite())
@@ -1127,9 +1146,9 @@ void MedirExecucao(long id)
       g_execLonge++;
       g_desvioLonge += pts;
       if(g_execLonge <= 10)
-         PrintFormat("Execução longe da ordem: %s %s ordem %.0f executou %.0f (%+.0f pts %s)",
-                     TimeToString((datetime)HistoryDealGetInteger(deal, DEAL_TIME), TIME_DATE | TIME_SECONDS),
-                     lado > 0 ? "compra" : "venda", precoOrdem, preco, MathAbs(desvio), desvio > 0 ? "contra" : "a favor");
+         PrintFormat("Execução longe da ordem: %s %s ordem %.0f executou %.0f (%.0f pts %s)",
+                     TimeToString(tempos[i], TIME_DATE | TIME_SECONDS), lados[i] > 0 ? "compra" : "venda",
+                     precoOrdem, precos[i], MathAbs(desvio), desvio > 0 ? "contra" : "a favor");
      }
   }
 
