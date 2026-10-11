@@ -59,17 +59,23 @@ Todos os números são parâmetros e podem ser otimizados no Strategy Tester.
 - **Histórico da XP:** o `WIN$N` não tem ticks de mar–set/2026. Valide em jan/2025–fev/2026 e use a conta demo para o período recente.
 - **Série contínua não é contrato real.** `WIN$` e `WIN$N` dão resultados muito diferentes com os mesmos ticks, e às vezes a ordem stop dispara pelo último negócio e executa pelo bid/ask a centenas de pontos do gatilho (ex.: `WIN$N` 20/02/2026 14:55, buy stop 192475 executado a 192255). Desde a v1.23 o RESUMO mostra quantas execuções ficaram a mais de 50 pts do preço da ordem, quanto isso somou e o resultado se tudo executasse no preço da ordem, além do % de ticks com último negócio fora do bid/ask.
 
-## Validação (v1.16, WIN$N, ticks reais, 2 contratos, sem custos)
+## Validação (v1.23, WIN$N, ticks reais, 100 ms, 2 contratos, sem custos B3)
 
-Otimização em jan–set/2025, prova em out/2025–fev/2026 (Avançar do MT5):
+Jan/2022 a fev/2026 (50 meses), regra padrão:
 
-| | Escolha (9 meses) | Prova (5 meses) |
+| | Com 1 reentrada | Sem reentrada (padrão desde a v1.24) |
 |---|---|---|
-| Resultado | R$ 9.682 | R$ 6.015 |
-| Por mês | ~R$ 1.076 | ~R$ 1.203 |
-| Pior queda | 0,71% | 0,45% |
+| Operações | 17.697 | 14.220 |
+| Resultado | 54.442 pts (R$ 21.777) | **77.372 pts (R$ 30.949)** |
+| Por operação | 3,1 pts | 5,4 pts |
+| Fator de lucro | 1,10 | 1,20 |
+| Drawdown | 11.215 pts | 5.858 pts |
 
-A mesma configuração ficou em 1º lugar nos dois períodos. Tamanho máximo de 1.500 a 2.000 dá o mesmo resultado (platô). Filtro de tendência e 2–3 reentradas não melhoram.
+- As reentradas sozinhas fizeram **−22.652 pts** em 4.466 operações. Desligadas por padrão.
+- Só 28 de 39.826 execuções ficaram a mais de 50 pts do preço da ordem (602 pts no total): o `WIN$N` é confiável para a regra.
+- Derrapagem normal (spread e 100 ms) custou ~7 pts por operação: o resultado no preço exato das ordens seria 176.885 pts. Execução é o maior custo do robô.
+- `WIN$` é ajuste proporcional: distorce o passado e inflou os testes antigos (115 mil pts em 2022–24 contra 25,8 mil no `WIN$N`). Não usar.
+- O backtest OHLC do Profit é pessimista com este robô (stop e alvos só entram no fechamento do minuto da entrada) e o histórico de 1 min começa em 23/01/2026.
 
 ## Parâmetros principais
 

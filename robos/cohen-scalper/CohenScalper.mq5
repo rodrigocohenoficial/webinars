@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.23"
+#property version   "1.24"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -89,7 +89,7 @@ input bool                 InpRegistrarDecisoes = false;          // Escrever no
 input bool                 InpGravarCSV     = false;              // Gravar as operações em CSV (pasta Common/Files)
 
 input group "Reentrada"
-input int                  InpMaxReentradas = 1;                  // Reentradas por sinal depois de sair no 0x0 (0 = desligado)
+input int                  InpMaxReentradas = 0;                  // Reentradas por sinal depois de sair no 0x0 (0 = desligado)
 input int                  InpReentradaMin  = 5;                  // Minutos para o preço voltar à entrada
 
 CTrade   trade;
@@ -211,7 +211,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.23 carregado");
+   Print("CohenScalper v1.24 carregado");
    return INIT_SUCCEEDED;
   }
 
