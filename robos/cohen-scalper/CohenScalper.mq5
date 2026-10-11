@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.21"
+#property version   "1.22"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -126,6 +126,15 @@ string   g_descMaiorGanho = "", g_descMaiorPerda = "";
 int      g_reOps = 0, g_viradas = 0;
 double   g_rePts = 0;
 
+// Diagnóstico da série (só mede, não muda nada na operação). Nas séries contínuas
+// o último negócio e o bid/ask às vezes vêm de lugares diferentes: a ordem stop
+// dispara pelo último e executa pelo bid/ask, a centenas de pontos do gatilho.
+int      g_ticksDiag = 0, g_ticksIncoerentes = 0;
+double   g_maiorIncoerencia = 0;
+datetime g_tMaiorIncoerencia = 0;
+int      g_execDiag = 0, g_execLonge = 0;
+double   g_desvioTotal = 0, g_desvioLonge = 0;   // pontos pelo preço médio; + = contra, - = a favor
+
 // Reentrada: saiu no 0x0 depois da parcial e o preço voltou à entrada -> entra de novo,
 // mesmo sinal, mesmo stop, mesma parcial e mesmo alvo.
 int      g_reDir         = 0;
@@ -202,7 +211,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.21 carregado");
+   Print("CohenScalper v1.22 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -227,6 +236,13 @@ void OnDeinit(const int reason)
       PrintFormat("Reentradas: %d operações, %.0f pts (já incluídas no total)", g_reOps, g_rePts);
    if(g_viradas > 0)
       PrintFormat("ATENÇÃO: %d posições atravessaram a noite e foram zeradas no dia seguinte", g_viradas);
+   PrintFormat("Execução: %d execuções a mais de %.0f pts do preço da ordem, somando %.0f pts contra (negativo = a favor) | " +
+               "desvio de todas as execuções: %.0f pts | resultado se executasse no preço da ordem: %.0f pts",
+               g_execLonge, DesvioLimite(), g_desvioLonge, g_desvioTotal, g_totalPts + g_desvioTotal);
+   if(g_ticksDiag > 0)
+      PrintFormat("Série: %d de %d ticks (%.2f%%) com último negócio fora do bid/ask por mais de %.0f pts | maior: %.0f pts em %s",
+                  g_ticksIncoerentes, g_ticksDiag, 100.0 * g_ticksIncoerentes / g_ticksDiag, DesvioLimite(),
+                  g_maiorIncoerencia, TimeToString(g_tMaiorIncoerencia, TIME_DATE | TIME_SECONDS));
    if(g_nomeArquivo != "")
       PrintFormat("Operações salvas em %s\\Files\\%s", TerminalInfoString(TERMINAL_COMMONDATA_PATH), g_nomeArquivo);
   }
@@ -285,6 +301,7 @@ void AbrirArquivo()
 //+------------------------------------------------------------------+
 void OnTick()
   {
+   DiagnosticarTick();
    int minutoAgora = MinutoDoDia(TimeCurrent());
 
    GerenciarPosicao(minutoAgora);
@@ -1016,6 +1033,8 @@ void RegistrarOperacao(long id)
       g_reAte   = TimeCurrent() + InpReentradaMin * 60;
      }
 
+   MedirExecucao(id);
+
    g_totalOps++;
    g_totalPts += pts;
    if(pts > 0)      { g_ganhos++; g_ptsGanhos += pts; }
@@ -1044,6 +1063,74 @@ void RegistrarOperacao(long id)
              g_sinalTendencia > 0 ? "alta" : g_sinalTendencia < 0 ? "baixa" : "sem",
              DescreverEntrada() + (g_posReentrada ? "_reentrada" : ""));
    FileFlush(g_arquivo);
+  }
+
+//+------------------------------------------------------------------+
+//| Diagnóstico da série                                             |
+//+------------------------------------------------------------------+
+double DesvioLimite()
+  {
+   return 10 * g_tick;   // 50 pts no WIN
+  }
+
+// Último negócio longe do bid/ask: dado incoerente (ou leilão).
+void DiagnosticarTick()
+  {
+   MqlTick t;
+   if(!SymbolInfoTick(_Symbol, t) || t.bid <= 0 || t.ask <= 0 || t.last <= 0)
+      return;
+   g_ticksDiag++;
+   double fora = MathMax(t.bid - t.last, t.last - t.ask);
+   if(fora <= DesvioLimite())
+      return;
+   g_ticksIncoerentes++;
+   if(fora > g_maiorIncoerencia)
+     {
+      g_maiorIncoerencia  = fora;
+      g_tMaiorIncoerencia = t.time;
+     }
+  }
+
+// Preço executado contra o preço da ordem (gatilho do stop, alvo, limitada ou
+// preço do envio a mercado), em pontos pelo preço médio como o resto do livro.
+void MedirExecucao(long id)
+  {
+   if(!HistorySelectByPosition(id))
+      return;
+   double volEntrada = 0;
+   for(int i = 0; i < HistoryDealsTotal(); i++)
+     {
+      ulong deal = HistoryDealGetTicket(i);
+      if(deal > 0 && HistoryDealGetInteger(deal, DEAL_ENTRY) == DEAL_ENTRY_IN)
+         volEntrada += HistoryDealGetDouble(deal, DEAL_VOLUME);
+     }
+   if(volEntrada <= 0)
+      return;
+
+   for(int i = 0; i < HistoryDealsTotal(); i++)
+     {
+      ulong deal = HistoryDealGetTicket(i);
+      if(deal == 0)
+         continue;
+      ulong  ordem      = (ulong)HistoryDealGetInteger(deal, DEAL_ORDER);
+      double precoOrdem = HistoryOrderGetDouble(ordem, ORDER_PRICE_OPEN);
+      double preco      = HistoryDealGetDouble(deal, DEAL_PRICE);
+      if(precoOrdem <= 0 || preco <= 0)
+         continue;
+      double lado   = (HistoryDealGetInteger(deal, DEAL_TYPE) == DEAL_TYPE_BUY) ? 1 : -1;
+      double desvio = (preco - precoOrdem) * lado;   // + = pior que a ordem
+      double pts    = desvio * HistoryDealGetDouble(deal, DEAL_VOLUME) / volEntrada;
+      g_execDiag++;
+      g_desvioTotal += pts;
+      if(MathAbs(desvio) <= DesvioLimite())
+         continue;
+      g_execLonge++;
+      g_desvioLonge += pts;
+      if(g_execLonge <= 10)
+         PrintFormat("Execução longe da ordem: %s %s ordem %.0f executou %.0f (%+.0f pts %s)",
+                     TimeToString((datetime)HistoryDealGetInteger(deal, DEAL_TIME), TIME_DATE | TIME_SECONDS),
+                     lado > 0 ? "compra" : "venda", precoOrdem, preco, MathAbs(desvio), desvio > 0 ? "contra" : "a favor");
+     }
   }
 
 //+------------------------------------------------------------------+
