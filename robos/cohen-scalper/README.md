@@ -71,6 +71,16 @@ Jan/2022 a fev/2026 (50 meses), regra padrão:
 | Fator de lucro | 1,10 | 1,20 |
 | Drawdown | 11.215 pts | 5.858 pts |
 
+Força do candle sinal (sem reentrada, otimização 2022–2024 e prova 2025–fev/2026):
+
+| Força | 2022–2024 | Prova 2025–fev/2026 |
+|---|---|---|
+| Corpo > 50% | 49.300 pts | 28.073 pts |
+| Fechou na ponta (martelo) | 52.843 pts | 31.808 pts |
+| **Corpo ou ponta (padrão desde a v1.25)** | **56.468 pts** | **33.438 pts** |
+
+O martelo acrescenta operações com a mesma qualidade por operação (~4,1 pts por saída na prova nos três casos) e ganhou nos dois períodos.
+
 - As reentradas sozinhas fizeram **−22.652 pts** em 4.466 operações. Desligadas por padrão.
 - Só 28 de 39.826 execuções ficaram a mais de 50 pts do preço da ordem (602 pts no total): o `WIN$N` é confiável para a regra.
 - Derrapagem normal (spread e 100 ms) custou ~7 pts por operação: o resultado no preço exato das ordens seria 176.885 pts. Execução é o maior custo do robô.

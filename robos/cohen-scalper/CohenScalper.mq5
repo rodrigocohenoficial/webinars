@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.24"
+#property version   "1.25"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -46,7 +46,7 @@ enum ENUM_FILTRO_TENDENCIA
 input group "Sinal"
 input ENUM_TIMEFRAMES      InpTimeframe     = PERIOD_M5;          // Tempo gráfico do sinal
 input ENUM_REF_FECHAMENTO  InpRefFechamento = REF_MAXIMA_MINIMA;  // Referência do fechamento
-input ENUM_FORCA           InpForca         = FORCA_CORPO;        // Força do candle sinal
+input ENUM_FORCA           InpForca         = FORCA_CORPO_OU_PONTA; // Força do candle sinal
 input double               InpCorpoMinPct   = 50.0;               // Corpo maior que X% do candle (50 = corpo > pavios)
 input double               InpPontaPct      = 33.0;               // Fechou na ponta: no máximo X% do candle entre o fechamento e a máx (compra) / mín (venda)
 input double               InpTamanhoMax    = 1000;               // Tamanho máximo do candle sinal (pontos)
@@ -211,7 +211,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.24 carregado");
+   Print("CohenScalper v1.25 carregado");
    return INIT_SUCCEEDED;
   }
 

@@ -1,5 +1,5 @@
 // =====================================================================
-// CohenScalper v1.25 - NTSL (Profit)  -  mesma regra do robô do MT5
+// CohenScalper v1.26 - NTSL (Profit)  -  mesma regra do robô do MT5
 //
 // RODAR EM GRÁFICO DE 1 MINUTO do WIN, com execução TICK A TICK no
 // backtest e na automação. O código é seguro para rodar a cada negócio:
@@ -20,7 +20,8 @@
 //    CancelarPendentes = 1 também chama CancelPendingOrders ao desarmar.
 //
 // Regra:
-//  - Sinal: candle de 5 min com corpo > 50% do tamanho, fechando acima da
+//  - Sinal: candle de 5 min com corpo > 50% do tamanho ou fechando na ponta
+//    (martelo; Forca), fechando acima da
 //    máxima (compra) ou abaixo da mínima (venda) do candle anterior,
 //    tamanho até TamanhoMax.
 //  - Entrada: espera o candle seguinte recuar RecuoPct% do candle sinal e
@@ -37,7 +38,7 @@
 // =====================================================================
 input
   TempoSinal(5);            // minutos do candle sinal
-  Forca(0);                 // 0 = corpo > CorpoMinPct; 1 = fechou na ponta (martelo); 2 = qualquer um
+  Forca(2);                 // 0 = corpo > CorpoMinPct; 1 = fechou na ponta (martelo); 2 = qualquer um
   CorpoMinPct(50);          // corpo maior que X% do candle
   PontaPct(33);             // na ponta: no máximo X% do candle entre o fechamento e a máx (compra) / mín (venda)
   TamanhoMax(1000);         // tamanho máximo do candle sinal (pts, 0 = sem limite)
