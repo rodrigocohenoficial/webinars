@@ -1,5 +1,5 @@
 // =====================================================================
-// CohenScalper v1.26 - NTSL (Profit)  -  mesma regra do robô do MT5
+// CohenScalper v1.27 - NTSL (Profit)  -  mesma regra do robô do MT5
 //
 // RODAR EM GRÁFICO DE 1 MINUTO do WIN, com execução TICK A TICK no
 // backtest e na automação. O código é seguro para rodar a cada negócio:
@@ -33,7 +33,7 @@
 //    Depois da parcial, stop no 0x0.
 //  - Reentrada: saiu no 0x0 e o preço voltou à entrada em até
 //    ReentradaMin minutos -> entra de novo (MaxReentradas vezes).
-//  - Meta e loss do dia em pontos pelo preço médio (40 + 180 = 110).
+//  - Meta e loss do dia em pontos pelo preço médio (60 + 80 = 70).
 //  - Posição que atravessar a noite é zerada no primeiro negócio do dia.
 // =====================================================================
 input
@@ -46,10 +46,10 @@ input
   ModoRetorno(1);           // 1 = espera recuar e voltar; 0 = a mercado na abertura
   RecuoPct(10);             // recuo mínimo, em % do candle sinal
   FolgaTicks(1);            // stop: ticks além da mín/máx do candle sinal
-  Parcial(40);              // pts da parcial (0 = sem parcial)
+  Parcial(60);              // pts da parcial (0 = sem parcial)
   ParcialPct(50);           // % da posição na parcial
   ZeroAposParcial(1);       // 1 = stop no 0x0 depois da parcial
-  Alvo(180);                // alvo final (pts)
+  Alvo(80);                 // alvo final (pts)
   Contratos(2);             // sempre par
   HoraInicio(915);          // primeira entrada (HHMM)
   HoraUltimaEntrada(1500);  // última entrada (HHMM)

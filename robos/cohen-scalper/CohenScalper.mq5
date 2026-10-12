@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.25"
+#property version   "1.26"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -66,10 +66,10 @@ input int                  InpTendJanela    = 60;                 // Candles ana
 
 input group "Stop e alvos"
 input int                  InpStopFolgaTicks  = 1;                // Stop: ticks além da mín/máx do candle sinal
-input double               InpParcialPts      = 40;               // Parcial (pontos, 0 = sem parcial)
+input double               InpParcialPts      = 60;               // Parcial (pontos, 0 = sem parcial)
 input double               InpParcialPct      = 50;               // Tamanho da parcial (% da posição)
 input bool                 InpZeroAposParcial = true;             // Stop no 0x0 ao bater a parcial
-input double               InpAlvoPts         = 180;              // Alvo final (pontos)
+input double               InpAlvoPts         = 80;               // Alvo final (pontos)
 
 input group "Horários"
 input string               InpInicio        = "09:15";            // Início das entradas
@@ -211,7 +211,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.25 carregado");
+   Print("CohenScalper v1.26 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -961,7 +961,7 @@ void ResultadoDoDia(double &pontos, int &operacoes)
      }
   }
 
-// Resultado de uma posição pelo preço médio: parcial de 40 + final de 180 = 110.
+// Resultado de uma posição pelo preço médio: parcial de 60 + final de 80 = 70.
 // Só conta o que já saiu; parte ainda aberta não entra.
 bool DadosDaPosicao(long id, double &pontos, datetime &tEntrada, datetime &tSaida, int &dir,
                     double &entrada, double &parcial, double &saida)

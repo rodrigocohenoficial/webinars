@@ -5,15 +5,15 @@ Scalper de price action. Sem indicadores. Uso próprio em backtest e demo antes 
 ## A regra
 
 **Sinal (candle que acabou de fechar)**
-- Corpo maior que 50% do tamanho total, ou seja, corpo maior que os pavios somados.
+- Força: corpo maior que 50% do tamanho total **ou** fechamento na ponta (até 33% do candle entre o fechamento e a máxima/mínima, o martelo vale).
 - Compra: candle de alta que fecha acima da máxima do candle anterior. Venda: o espelho.
-- Tamanho total (máxima − mínima) de no máximo 2000 pontos (na prática, sem limite).
+- Tamanho total (máxima − mínima) de no máximo 1000 pontos.
 - Filtro de tendência opcional (desligado por padrão), detalhado abaixo.
 
 **Entrada (no fechamento do candle sinal = abertura do seguinte)**
 - Modo `retorno` (padrão): espera o candle seguinte recuar um mínimo (em % do candle sinal ou em pontos) e entra quando ele volta à abertura. Se perder o candle sinal antes, ou se o candle acabar sem voltar, não entra.
 - Modo `abertura`: a mercado assim que o candle seguinte abre.
-- Reentrada (padrão 1): saiu no 0x0 e o preço voltou à entrada em até 5 min → entra de novo, mesmo stop e alvos.
+- Reentrada (padrão 0, desligada): saiu no 0x0 e o preço voltou à entrada em até 5 min → entra de novo, mesmo stop e alvos.
 
 **Tendência (topos e fundos)**
 - Topo: candle com máxima maior que a dos 2 candles de cada lado. Fundo: o espelho.
@@ -25,13 +25,13 @@ Scalper de price action. Sem indicadores. Uso próprio em backtest e demo antes 
 
 **Saída**
 - Stop: 1 tick além da mínima (compra) ou da máxima (venda) do candle sinal.
-- Parcial: metade da posição com 40 pontos. Ao bater a parcial, o stop vai para o 0x0.
-- Alvo final: 180 pontos.
+- Parcial: metade da posição com 60 pontos. Ao bater a parcial, o stop vai para o 0x0.
+- Alvo final: 80 pontos.
 
 **Gestão**
-- Entradas a partir de 09:15. Última entrada às 13:00. Zera às 17:30.
+- Entradas a partir de 09:15. Última entrada às 15:00. Zera às 17:30.
 - Bloqueio de horários opcional (desligado por padrão): quando ligado, não entra em 09:30, 10:00, 10:30, 11:00 e 11:30, com margem de 5 min antes e depois. Exemplo para 09:30: não entra 09:25 nem 09:30; 09:35 já pode.
-- Meta do dia de 500 pontos e loss do dia de 500 pontos, contados pelo preço médio (parcial 40 + final 180 = 110). Ao atingir qualquer um, para de abrir operações.
+- Meta do dia de 1500 pontos e loss do dia de 500 pontos, contados pelo preço médio (parcial 60 + final 80 = 70). Ao atingir qualquer um, para de abrir operações.
 - Contratos sempre pares.
 - Uma operação por vez.
 
@@ -80,6 +80,18 @@ Força do candle sinal (sem reentrada, otimização 2022–2024 e prova 2025–f
 | **Corpo ou ponta (padrão desde a v1.25)** | **56.468 pts** | **33.438 pts** |
 
 O martelo acrescenta operações com a mesma qualidade por operação (~4,1 pts por saída na prova nos três casos) e ganhou nos dois períodos.
+
+Entrada (força corpo ou ponta, sem reentrada): a mercado na abertura perdeu em todas as combinações; entrar limitado no ponto do recuo fez −20 mil pts em 2022–2024. O retorno à abertura é o que dá o resultado. Filtro "livre até 13h" empata no bruto com 22% menos operações (decisão depende da taxa B3); "só a favor" o dia todo derruba o resultado.
+
+Parcial × alvo (pts em 2022–2024 / prova 2025–fev/2026):
+
+| Parcial \ Alvo | 80 | 120 | 140 | 180 |
+|---|---|---|---|---|
+| 40 | 93.878 / 47.235 | 75.668 / 41.853 | 65.523 / 39.603 | 56.468 / 33.438 |
+| **60** | **100.855 / 52.215** | 81.735 / 44.368 | 69.775 / 42.705 | 58.153 / 37.358 |
+| 80 | sem parcial: 108.085 / 54.570 | 84.343 / 44.788 | 72.275 / 43.353 | 54.920 / 37.553 |
+
+Alvo menor ganhou em todas as parciais, nos dois períodos. Padrão desde a v1.26: **parcial 60, alvo 80** (drawdown 1,47% / 0,93%, contra 2,03% / 1,53% de sair inteiro no 80). Alvos abaixo de 80 não foram testados de propósito: com ~7 pts de derrapagem e a taxa B3 por operação, alvo menor fica refém da execução.
 
 - As reentradas sozinhas fizeram **−22.652 pts** em 4.466 operações. Desligadas por padrão.
 - Só 28 de 39.826 execuções ficaram a mais de 50 pts do preço da ordem (602 pts no total): o `WIN$N` é confiável para a regra.
