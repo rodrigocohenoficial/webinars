@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.26"
+#property version   "1.27"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -211,7 +211,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.26 carregado");
+   Print("CohenScalper v1.27 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -873,6 +873,24 @@ void GerenciarPosicao(int minutoAgora)
       return;
      }
 
+   // Depois da parcial o stop é o 0x0. Se a alteração do stop no servidor falhou
+   // (por exemplo, o preço já voltou à entrada), insiste a cada tick e, enquanto
+   // isso, o próprio robô usa o 0x0 como stop: nunca volta para o stop original.
+   if(g_parcialFeita && InpZeroAposParcial && preco > 0)
+     {
+      double zero = ArredondarPreco(preco);
+      bool faltaZero = (tipo == POSITION_TYPE_BUY) ? (sl < zero - g_tick / 2)
+                                                   : (sl == 0 || sl > zero + g_tick / 2);
+      if(faltaZero)
+        {
+         bool podeModificar = (tipo == POSITION_TYPE_BUY) ? bid > zero : ask < zero;
+         if(podeModificar && trade.PositionModify(ticket, zero, tp) &&
+            trade.ResultRetcode() == TRADE_RETCODE_DONE)
+            PrintFormat("Stop movido para o 0x0 em %.0f", zero);
+         sl = zero;
+        }
+     }
+
    // Na B3 o stop/alvo da posição nem sempre é executado pelo MT5 (no testador,
    // o preço passou pelos dois e a posição ficou aberta). O robô confere a cada
    // tick e zera a mercado. O stop/alvo da posição fica como proteção extra.
@@ -901,9 +919,7 @@ void GerenciarPosicao(int minutoAgora)
       if(!FecharParcial(ticket, tipo, volParcial))
          return;   // tenta de novo no próximo tick
 
-   g_parcialFeita = true;
-   if(InpZeroAposParcial)
-      trade.PositionModify(ticket, ArredondarPreco(preco), tp);
+   g_parcialFeita = true;   // o 0x0 é aplicado (e conferido) a partir do próximo tick
   }
 
 //+------------------------------------------------------------------+
