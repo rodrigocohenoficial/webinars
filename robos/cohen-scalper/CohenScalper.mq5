@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.27"
+#property version   "1.28"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -145,6 +145,14 @@ int      g_reRestantes   = 0;
 bool     g_entradaReentrada = false;   // a próxima posição é uma reentrada
 bool     g_posReentrada  = false;      // a posição acompanhada é uma reentrada
 
+// Saídas sem corrida com o servidor (v1.28).
+double   g_volAntesParcial = 0;        // volume quando a parcial foi enviada
+datetime g_tParcial      = 0;          // quando a parcial foi enviada
+datetime g_tCruzou       = 0;          // desde quando o preço está além do stop/alvo do servidor
+int      g_posDir        = 0;          // direção da posição acompanhada
+int      g_ultimaDir     = 0;          // direção da última posição fechada
+datetime g_tUltimoFechamento = 0;      // quando a última posição fechou
+
 //+------------------------------------------------------------------+
 int OnInit()
   {
@@ -211,7 +219,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.27 carregado");
+   Print("CohenScalper v1.28 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -343,8 +351,8 @@ void MonitorarReentrada(int minutoAgora)
       return;
      }
 
-   double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-   double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   double bid = PrecoRef();
+   double ask = bid;
    bool perdeuSinal = (g_reDir > 0) ? bid <= g_reStop : ask >= g_reStop;
    if(TimeCurrent() > g_reAte || perdeuSinal || minutoAgora > g_minUltima || minutoAgora >= g_minZerar)
      {
@@ -729,8 +737,8 @@ void MonitorarRetorno()
       return;
      }
 
-   double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-   double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   double bid = PrecoRef();
+   double ask = bid;
 
    // Perdeu o candle sinal antes de entrar: setup invalidado.
    if((g_retornoDir > 0 && bid <= g_stopPlanejado) || (g_retornoDir < 0 && ask >= g_stopPlanejado))
@@ -758,16 +766,20 @@ void MonitorarRetorno()
 
    g_recuou = true;
    double volume = AjustarVolume(InpContratos);
+   // A ordem stop precisa ficar além do livro; se o último ou o livro já estão
+   // na abertura, entra a mercado.
+   double livroAsk = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   double livroBid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    if(g_retornoDir > 0)
      {
-      if(ask >= g_retornoPreco)
+      if(ask >= g_retornoPreco || livroAsk >= g_retornoPreco)
          trade.Buy(volume, _Symbol, 0, 0, 0, "retorno");
       else
          trade.BuyStop(volume, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, "retorno");
      }
    else
      {
-      if(bid <= g_retornoPreco)
+      if(bid <= g_retornoPreco || (livroBid > 0 && livroBid <= g_retornoPreco))
          trade.Sell(volume, _Symbol, 0, 0, 0, "retorno");
       else
          trade.SellStop(volume, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, "retorno");
@@ -786,14 +798,21 @@ void GerenciarPosicao(int minutoAgora)
         {
          RegistrarOperacao(g_posId);   // a posição acabou de fechar
          GlobalVariableDel(NomeStopGuardado());
+         g_ultimaDir = g_posDir;
+         g_tUltimoFechamento = TimeCurrent();
         }
       g_posId = 0;
       g_parcialFeita = false;
+      g_volAntesParcial = 0;
+      g_tCruzou = 0;
       return;
      }
 
-   double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-   double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   // Bid e ask aqui são o último negócio: é por ele que o servidor executa.
+   double bid = PrecoRef();
+   double ask = bid;
+   int    dir = (tipo == POSITION_TYPE_BUY) ? 1 : -1;
+   double volCheio = AjustarVolume(InpContratos);
 
    if(PositionSelectByTicket(ticket))
      {
@@ -803,17 +822,31 @@ void GerenciarPosicao(int minutoAgora)
          if(g_posId != 0)
             RegistrarOperacao(g_posId);
          g_posId = id;
+         g_posDir = dir;
          g_posStop = g_stopPlanejado;
          g_posReentrada = g_entradaReentrada;
          g_entradaReentrada = false;
          g_mfe = 0;
          g_mae = 0;
          g_motivoSaida = "";
+         g_tCruzou = 0;
+
+         // Uma saída que chegou depois da posição já zerada abre uma posição
+         // no sentido contrário (conta netting). Não é sinal: zera na hora.
+         if(g_ultimaDir != 0 && dir == -g_ultimaDir && volume < volCheio &&
+            TimeCurrent() - g_tUltimoFechamento <= 10)
+           {
+            PrintFormat("Posição acidental de %.0f contratos (%s) logo depois de zerar. Zerando.",
+                        volume, dir > 0 ? "compra" : "venda");
+            g_motivoSaida = "acidental";
+            trade.PositionClose(ticket);
+            return;
+           }
         }
      }
    if(preco > 0)
      {
-      double aFavor = (tipo == POSITION_TYPE_BUY) ? bid - preco : preco - ask;
+      double aFavor = (bid - preco) * dir;
       g_mfe = MathMax(g_mfe, aFavor);
       g_mae = MathMax(g_mae, -aFavor);
      }
@@ -837,7 +870,15 @@ void GerenciarPosicao(int minutoAgora)
       return;
      }
 
-   // Stop e alvo entram logo após a execução, a partir do preço executado.
+   if(preco <= 0)
+      return;
+   double alvo = ArredondarPreco(preco + dir * InpAlvoPts);
+   // Com parcial, o alvo do servidor só entra depois dela: antes, um alvo no
+   // servidor e a parcial do robô podiam executar juntos e virar a mão.
+   bool usaParcial  = (InpParcialPts > 0 && InpParcialPts < InpAlvoPts);
+   bool alvoNoServ  = !usaParcial || g_parcialFeita;
+
+   // Stop (e alvo, se for o caso) entram logo após a execução.
    if(sl == 0 && tp == 0)
      {
       if(g_stopPlanejado <= 0)
@@ -847,79 +888,126 @@ void GerenciarPosicao(int minutoAgora)
          g_avisouSemStop = true;
          return;
         }
-      if((tipo == POSITION_TYPE_BUY && bid <= g_stopPlanejado) ||
-         (tipo == POSITION_TYPE_SELL && ask >= g_stopPlanejado))
+      if((bid - g_stopPlanejado) * dir <= 0)
         {
          g_motivoSaida = "stop";
          trade.PositionClose(ticket);   // executou além do stop
          return;
         }
-      double alvo = (tipo == POSITION_TYPE_BUY) ? preco + InpAlvoPts : preco - InpAlvoPts;
-      if(preco > 0 && ((tipo == POSITION_TYPE_BUY && bid >= alvo) || (tipo == POSITION_TYPE_SELL && ask <= alvo)))
+      if((bid - alvo) * dir >= 0)
         {
          g_motivoSaida = "alvo";   // andou até o alvo antes de dar tempo de colocar stop e alvo
          trade.PositionClose(ticket);
          return;
         }
-      bool ok = preco > 0 && trade.PositionModify(ticket, g_stopPlanejado, ArredondarPreco(alvo)) &&
+      bool ok = trade.PositionModify(ticket, g_stopPlanejado, alvoNoServ ? alvo : 0.0) &&
                 trade.ResultRetcode() == TRADE_RETCODE_DONE;
       if(!ok && ++g_falhasStop >= 5)
         {
          // Posição sem stop não fica aberta.
-         PrintFormat("Não consegui colocar stop e alvo (preço de entrada %.2f). Zerando por segurança.", preco);
+         PrintFormat("Não consegui colocar o stop (preço de entrada %.2f). Zerando por segurança.", preco);
          g_motivoSaida = "seguranca";
          trade.PositionClose(ticket);
         }
       return;
      }
 
-   // Depois da parcial o stop é o 0x0. Se a alteração do stop no servidor falhou
-   // (por exemplo, o preço já voltou à entrada), insiste a cada tick e, enquanto
-   // isso, o próprio robô usa o 0x0 como stop: nunca volta para o stop original.
-   if(g_parcialFeita && InpZeroAposParcial && preco > 0)
+   // Parcial enviada e ainda não refletida na posição: não manda outra ordem de
+   // saída (venderia a mais). O stop do servidor continua protegendo.
+   if(g_parcialFeita && g_volAntesParcial > 0)
      {
-      double zero = ArredondarPreco(preco);
-      bool faltaZero = (tipo == POSITION_TYPE_BUY) ? (sl < zero - g_tick / 2)
-                                                   : (sl == 0 || sl > zero + g_tick / 2);
-      if(faltaZero)
+      if(volume >= g_volAntesParcial)
         {
-         bool podeModificar = (tipo == POSITION_TYPE_BUY) ? bid > zero : ask < zero;
-         if(podeModificar && trade.PositionModify(ticket, zero, tp) &&
+         if(TimeCurrent() - g_tParcial < 10)
+            return;
+         PrintFormat("Parcial enviada às %s não apareceu na posição. Tentando de novo.",
+                     TimeToString(g_tParcial, TIME_SECONDS));
+         g_parcialFeita = false;
+         g_volAntesParcial = 0;
+         return;
+        }
+      PrintFormat("Parcial executada: posição de %.0f para %.0f contratos", g_volAntesParcial, volume);
+      g_volAntesParcial = 0;
+     }
+
+   // Depois da parcial: stop no 0x0 e alvo do resto no servidor. Confere a cada
+   // tick; enquanto o servidor não aceitar, o robô usa os mesmos níveis.
+   if(g_parcialFeita)
+     {
+      double stopDepois = InpZeroAposParcial ? ArredondarPreco(preco) : sl;
+      bool faltaStop = (stopDepois - sl) * dir > g_tick / 2;
+      bool faltaAlvo = MathAbs(tp - alvo) > g_tick / 2;
+      if(faltaStop || faltaAlvo)
+        {
+         bool podeModificar = (bid - stopDepois) * dir > 0 && (alvo - bid) * dir > 0;
+         if(podeModificar && trade.PositionModify(ticket, stopDepois, alvo) &&
             trade.ResultRetcode() == TRADE_RETCODE_DONE)
-            PrintFormat("Stop movido para o 0x0 em %.0f", zero);
-         sl = zero;
+            PrintFormat("Depois da parcial: stop %.0f, alvo %.0f", stopDepois, alvo);
+         // Níveis que o servidor ainda não tem: o robô executa sem esperar.
+         if(faltaStop && (bid - stopDepois) * dir <= 0)
+           {
+            g_motivoSaida = InpZeroAposParcial ? "0x0" : "stop";
+            trade.PositionClose(ticket);
+            return;
+           }
+         if(faltaAlvo && (bid - alvo) * dir >= 0)
+           {
+            g_motivoSaida = "alvo";
+            trade.PositionClose(ticket);
+            return;
+           }
+         sl = stopDepois;
+         tp = alvo;
         }
      }
 
-   // Na B3 o stop/alvo da posição nem sempre é executado pelo MT5 (no testador,
-   // o preço passou pelos dois e a posição ficou aberta). O robô confere a cada
-   // tick e zera a mercado. O stop/alvo da posição fica como proteção extra.
-   bool bateuStop = (tipo == POSITION_TYPE_BUY) ? bid <= sl : ask >= sl;
-   bool bateuAlvo = tp > 0 && ((tipo == POSITION_TYPE_BUY) ? bid >= tp : ask <= tp);
-   if((sl > 0 && bateuStop) || bateuAlvo)
+   // Antes da parcial o alvo não está no servidor: o robô executa na hora.
+   if(!alvoNoServ && (bid - alvo) * dir >= 0)
      {
-      g_motivoSaida = bateuAlvo ? "alvo" : (MathAbs(sl - preco) < g_tick / 2 ? "0x0" : "stop");
-      if(InpRegistrarDecisoes)
-         PrintFormat("Saída pelo robô: %s (bid %.0f / ask %.0f, stop %.0f, alvo %.0f)",
-                     g_motivoSaida, bid, ask, sl, tp);
+      g_motivoSaida = "alvo";
       trade.PositionClose(ticket);
       return;
      }
 
-   if(g_parcialFeita || InpParcialPts <= 0)
+   // Stop/alvo do servidor: ele executa primeiro. Se o preço ficar além do nível
+   // por 3 s e a posição continuar aberta, o robô zera (no testador o servidor às
+   // vezes não executa). Sem a espera, robô e servidor zerariam juntos.
+   bool alemStop = sl > 0 && (bid - sl) * dir <= 0;
+   bool alemAlvo = tp > 0 && (bid - tp) * dir >= 0;
+   if(alemStop || alemAlvo)
+     {
+      if(g_tCruzou == 0)
+         g_tCruzou = TimeCurrent();
+      if(TimeCurrent() - g_tCruzou >= 3)
+        {
+         g_motivoSaida = alemAlvo ? "alvo" : (MathAbs(sl - preco) < g_tick / 2 ? "0x0" : "stop");
+         PrintFormat("Saída pelo robô (servidor não executou em 3 s): %s, último %.0f, stop %.0f, alvo %.0f",
+                     g_motivoSaida, bid, sl, tp);
+         trade.PositionClose(ticket);
+        }
+      return;
+     }
+   g_tCruzou = 0;
+
+   if(!usaParcial || g_parcialFeita)
       return;
 
-   bool bateuParcial = (tipo == POSITION_TYPE_BUY) ? bid >= preco + InpParcialPts
-                                                   : ask <= preco - InpParcialPts;
-   if(!bateuParcial)
+   if((bid - (preco + dir * InpParcialPts)) * dir < 0)
       return;
 
-   double volParcial = AjustarVolume(AjustarVolume(InpContratos) * InpParcialPct / 100.0);
-   if(volParcial > 0 && volParcial < volume)
-      if(!FecharParcial(ticket, tipo, volParcial))
-         return;   // tenta de novo no próximo tick
-
-   g_parcialFeita = true;   // o 0x0 é aplicado (e conferido) a partir do próximo tick
+   double volParcial = AjustarVolume(volCheio * InpParcialPct / 100.0);
+   if(volParcial <= 0 || volParcial >= volume)
+     {
+      g_parcialFeita = true;   // posição já reduzida (robô reiniciado): segue como depois da parcial
+      return;
+     }
+   PrintFormat("Parcial: %s %.0f a mercado (último %.0f, entrada %.0f)",
+               dir > 0 ? "vendendo" : "comprando", volParcial, bid, preco);
+   if(!FecharParcial(ticket, tipo, volParcial))
+      return;   // tenta de novo no próximo tick
+   g_parcialFeita    = true;
+   g_volAntesParcial = volume;
+   g_tParcial        = TimeCurrent();
   }
 
 //+------------------------------------------------------------------+
@@ -1079,6 +1167,24 @@ void RegistrarOperacao(long id)
              g_sinalTendencia > 0 ? "alta" : g_sinalTendencia < 0 ? "baixa" : "sem",
              DescreverEntrada() + (g_posReentrada ? "_reentrada" : ""));
    FileFlush(g_arquivo);
+  }
+
+//+------------------------------------------------------------------+
+//| Preço de referência                                              |
+//+------------------------------------------------------------------+
+// Na B3 o servidor dispara stop, alvo e ordens stop pelo último negócio. O robô
+// decide pelo mesmo preço; bid/ask só entram se ainda não houve negócio.
+double PrecoRef()
+  {
+   MqlTick t;
+   if(SymbolInfoTick(_Symbol, t))
+     {
+      if(t.last > 0)
+         return t.last;
+      if(t.bid > 0 && t.ask > 0)
+         return (t.bid + t.ask) / 2;
+     }
+   return SymbolInfoDouble(_Symbol, SYMBOL_BID);
   }
 
 //+------------------------------------------------------------------+
