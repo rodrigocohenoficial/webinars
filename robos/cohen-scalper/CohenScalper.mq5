@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.28"
+#property version   "1.29"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -152,6 +152,8 @@ datetime g_tCruzou       = 0;          // desde quando o preço está além do s
 int      g_posDir        = 0;          // direção da posição acompanhada
 int      g_ultimaDir     = 0;          // direção da última posição fechada
 datetime g_tUltimoFechamento = 0;      // quando a última posição fechou
+ulong    g_ticketParcial = 0;          // ordem limitada da parcial, pendente no servidor
+int      g_falhasParcial = 0;          // recusas da ordem limitada nesta posição
 
 //+------------------------------------------------------------------+
 int OnInit()
@@ -204,6 +206,10 @@ int OnInit()
    // Não entra no meio de um candle já aberto: espera o próximo.
    g_ultimoCandle = iTime(_Symbol, InpTimeframe, 0);
 
+   // Ordens que ficaram de uma execução anterior (entrada ou parcial) não valem
+   // mais: a parcial é recolocada no próximo tick se ainda houver posição.
+   CancelarPendentes();
+
    // Se o robô reiniciar com a posição já reduzida, a parcial já foi feita.
    ulong t; long tipo; double vol, preco, sl, tp;
    if(BuscarPosicao(t, tipo, vol, preco, sl, tp))
@@ -219,7 +225,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.28 carregado");
+   Print("CohenScalper v1.29 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -805,6 +811,8 @@ void GerenciarPosicao(int minutoAgora)
       g_parcialFeita = false;
       g_volAntesParcial = 0;
       g_tCruzou = 0;
+      g_falhasParcial = 0;
+      CancelarParcial();   // sem posição, uma parcial pendente abriria posição contrária
       return;
      }
 
@@ -912,8 +920,56 @@ void GerenciarPosicao(int minutoAgora)
       return;
      }
 
-   // Parcial enviada e ainda não refletida na posição: não manda outra ordem de
-   // saída (venderia a mais). O stop do servidor continua protegendo.
+   // Parcial como ordem limitada no servidor, colocada logo depois do stop:
+   // executa no preço da parcial (a mercado, o preço vinha 15 a 45 pts pior).
+   if(usaParcial && !g_parcialFeita)
+     {
+      if(g_ticketParcial != 0)
+        {
+         if(volume < volCheio)
+           {
+            PrintFormat("Parcial executada pela ordem limitada: posição de %.0f para %.0f contratos", volCheio, volume);
+            CancelarParcial();   // o que sobrou da ordem, se ela executou só em parte
+            g_parcialFeita = true;
+           }
+         else if(!OrderSelect(g_ticketParcial))
+           {
+            // Saiu das pendentes: executou (a posição ainda não refletiu) ou foi cancelada.
+            long estado = HistoryOrderSelect(g_ticketParcial) ?
+                          HistoryOrderGetInteger(g_ticketParcial, ORDER_STATE) : -1;
+            if(estado == ORDER_STATE_FILLED || estado == ORDER_STATE_PARTIAL)
+              {
+               g_parcialFeita    = true;     // espera a posição refletir (trava abaixo)
+               g_volAntesParcial = volume;
+               g_tParcial        = TimeCurrent();
+              }
+            else
+               Print("Ordem limitada da parcial não está mais no servidor. O robô assume a parcial.");
+            g_ticketParcial = 0;
+           }
+        }
+      else if(g_volAntesParcial == 0 && volume >= volCheio && g_falhasParcial < 3)
+        {
+         double volParc  = AjustarVolume(volCheio * InpParcialPct / 100.0);
+         double precoPar = ArredondarPreco(preco + dir * InpParcialPts);
+         if(volParc > 0 && volParc < volume && (precoPar - bid) * dir > 0)
+           {
+            bool ok = (dir > 0) ? trade.SellLimit(volParc, precoPar, _Symbol, 0, 0, TipoValidade(), 0, "parcial")
+                                : trade.BuyLimit(volParc, precoPar, _Symbol, 0, 0, TipoValidade(), 0, "parcial");
+            uint rc = trade.ResultRetcode();
+            if(ok && (rc == TRADE_RETCODE_DONE || rc == TRADE_RETCODE_PLACED) && trade.ResultOrder() > 0)
+              {
+               g_ticketParcial = trade.ResultOrder();
+               PrintFormat("Parcial limitada: %s %.0f a %.0f", dir > 0 ? "venda" : "compra", volParc, precoPar);
+              }
+            else if(++g_falhasParcial >= 3)
+               PrintFormat("Ordem limitada da parcial recusada (código %u). O robô faz a parcial a mercado.", rc);
+           }
+        }
+     }
+
+   // Parcial enviada a mercado e ainda não refletida na posição: não manda outra
+   // ordem de saída (venderia a mais). O stop do servidor continua protegendo.
    if(g_parcialFeita && g_volAntesParcial > 0)
      {
       if(volume >= g_volAntesParcial)
@@ -989,8 +1045,8 @@ void GerenciarPosicao(int minutoAgora)
      }
    g_tCruzou = 0;
 
-   if(!usaParcial || g_parcialFeita)
-      return;
+   if(!usaParcial || g_parcialFeita || g_ticketParcial != 0)
+      return;   // com a ordem limitada no servidor, quem faz a parcial é ela
 
    if((bid - (preco + dir * InpParcialPts)) * dir < 0)
       return;
@@ -1320,16 +1376,24 @@ double PrecoDaEntrada(long idPosicao)
    return 0;
   }
 
+// Ordens de entrada pendentes. A parcial da posição aberta fica.
 void CancelarPendentes()
   {
    for(int i = OrdersTotal() - 1; i >= 0; i--)
      {
       ulong t = OrderGetTicket(i);
-      if(t == 0 || OrderGetString(ORDER_SYMBOL) != _Symbol)
+      if(t == 0 || t == g_ticketParcial || OrderGetString(ORDER_SYMBOL) != _Symbol)
          continue;
       if((ulong)OrderGetInteger(ORDER_MAGIC) == InpMagic)
          trade.OrderDelete(t);
      }
+  }
+
+void CancelarParcial()
+  {
+   if(g_ticketParcial != 0 && OrderSelect(g_ticketParcial))
+      trade.OrderDelete(g_ticketParcial);
+   g_ticketParcial = 0;
   }
 
 ENUM_ORDER_TYPE_TIME TipoValidade()
