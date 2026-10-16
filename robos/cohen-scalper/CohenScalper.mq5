@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.29"
+#property version   "1.30"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -101,6 +101,7 @@ int      g_retornoDir    = 0;     // modo retorno: 1 compra / -1 venda armada no
 double   g_retornoPreco  = 0;     // abertura do candle, onde a entrada acontece
 double   g_retornoRecuo  = 0;     // recuo mínimo, em preço
 bool     g_recuou        = false;
+bool     g_retornoNoRobo = false;  // ordem stop recusada: o robô entra quando o último voltar à abertura
 double   g_retornoExtremo = 0;    // até onde o preço recuou enquanto a entrada estava armada
 double   g_precoReferencia = 0;   // preço no envio da ordem, reserva se a posição vier sem preço
 int      g_falhasStop    = 0;
@@ -225,7 +226,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.29 carregado");
+   Print("CohenScalper v1.30 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -687,6 +688,7 @@ void Entrar(int direcao)
    g_retornoExtremo = 0;
    g_precoReferencia = g_retornoPreco;
    g_recuou        = false;
+   g_retornoNoRobo = false;
 
    if(InpEntrarNoRecuo)
      {
@@ -758,7 +760,20 @@ void MonitorarRetorno()
      }
 
    if(g_recuou)
+     {
+      // Ordem stop recusada: o robô entra a mercado quando o último negócio
+      // voltar à abertura (é o que a ordem stop faria no servidor).
+      if(g_retornoNoRobo && (bid - g_retornoPreco) * g_retornoDir >= 0)
+        {
+         g_retornoNoRobo = false;
+         double vol = AjustarVolume(InpContratos);
+         if(g_retornoDir > 0)
+            trade.Buy(vol, _Symbol, 0, 0, 0, "retorno");
+         else
+            trade.Sell(vol, _Symbol, 0, 0, 0, "retorno");
+        }
       return;   // ordem stop já está na abertura
+     }
 
    if(g_retornoDir > 0)
       g_retornoExtremo = (g_retornoExtremo == 0) ? bid : MathMin(g_retornoExtremo, bid);
@@ -772,23 +787,26 @@ void MonitorarRetorno()
 
    g_recuou = true;
    double volume = AjustarVolume(InpContratos);
-   // A ordem stop precisa ficar além do livro; se o último ou o livro já estão
-   // na abertura, entra a mercado.
-   double livroAsk = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-   double livroBid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-   if(g_retornoDir > 0)
+   // Decide só pelo último negócio. O livro do servidor pode estar atrasado:
+   // na v1.28, "livro já na abertura" fez o robô comprar a mercado no meio do
+   // recuo, 200 pts abaixo da abertura.
+   if((bid - g_retornoPreco) * g_retornoDir >= 0)
      {
-      if(ask >= g_retornoPreco || livroAsk >= g_retornoPreco)
+      if(g_retornoDir > 0)
          trade.Buy(volume, _Symbol, 0, 0, 0, "retorno");
       else
-         trade.BuyStop(volume, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, "retorno");
-     }
-   else
-     {
-      if(bid <= g_retornoPreco || (livroBid > 0 && livroBid <= g_retornoPreco))
          trade.Sell(volume, _Symbol, 0, 0, 0, "retorno");
-      else
-         trade.SellStop(volume, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, "retorno");
+      return;
+     }
+   bool ok = (g_retornoDir > 0)
+             ? trade.BuyStop(volume, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, "retorno")
+             : trade.SellStop(volume, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, "retorno");
+   uint rc = trade.ResultRetcode();
+   if(!ok || (rc != TRADE_RETCODE_DONE && rc != TRADE_RETCODE_PLACED))
+     {
+      g_retornoNoRobo = true;
+      PrintFormat("Ordem stop na abertura recusada (código %u): o robô entra quando o último negócio voltar a %.0f",
+                  rc, g_retornoPreco);
      }
   }
 
