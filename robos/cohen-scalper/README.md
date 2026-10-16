@@ -138,7 +138,7 @@ Alvo menor ganhou em todas as parciais, nos dois períodos. Padrão desde a v1.2
 - No preço exato das ordens, ainda −2.524 pts: o prejuízo não é só derrapagem, o sinal não funciona no dólar.
 - Série limpa (0 de 750 milhões de ticks fora do bid/ask), então não é dado ruim. O `WDO$N` do servidor DEMO só tem ticks desde jul/2025 e barras que não batem com eles; use o PRD.
 
-Pela regra combinada (negativo no preço das ordens = não otimizar), o WDO fica fora deste robô.
+Tentativa extra de otimização com hipótese (o recuo de 10% vira 1 tick no dólar, sem o filtro que dá o edge no índice): recuo 10–50% × alvo 1,5–4,5, 20 combinações. Todas negativas nos dois períodos (melhor: recuo 50%, −1.669 pts em 2022–24 e −645 em 2025–26). O alvo quase não muda nada e a perda por negociação fica em ~−0,5 pt em todas: o problema é a entrada, não a saída. O WDO fica fora deste robô.
 
 ### Horário, meta e loss (v1.18)
 
