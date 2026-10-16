@@ -132,17 +132,13 @@ Alvo menor ganhou em todas as parciais, nos dois períodos. Padrão desde a v1.2
 
 ## WIN x WDO
 
-Os padrões do robô são de WIN. No WDO, rode outra instância trocando:
+**A regra não tem edge no WDO.** Teste v1.28 em `WDO$N` (terminal PRD, ticks reais, 2022–fev/2026), parâmetros convertidos pelo mesmo risco em R$ por contrato (1 pt WDO = 50 pts WIN): parcial 1,0, alvo 1,5, candle até 20, meta 30, loss 10.
 
-| Parâmetro | WIN | WDO |
-|---|---|---|
-| Parcial | 40 | 2 |
-| Alvo final | 180 | 5 |
-| Meta do dia | 500 | 15 |
-| Tamanho máximo do candle | 500 | 10 |
-| Loss do dia | 500 | 15 |
+- 8.481 operações, −4.988 pts (−0,6 pt por operação), fator de lucro 0,50: a conta de R$ 100 mil foi a zero.
+- No preço exato das ordens, ainda −2.524 pts: o prejuízo não é só derrapagem, o sinal não funciona no dólar.
+- Série limpa (0 de 750 milhões de ticks fora do bid/ask), então não é dado ruim. O `WDO$N` do servidor DEMO só tem ticks desde jul/2025 e barras que não batem com eles; use o PRD.
 
-A folga do stop está em ticks e serve para os dois.
+Pela regra combinada (negativo no preço das ordens = não otimizar), o WDO fica fora deste robô.
 
 ### Horário, meta e loss (v1.18)
 
