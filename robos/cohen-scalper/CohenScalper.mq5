@@ -5,10 +5,16 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.30"
+#property version   "1.31"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
+
+// ---- Licença: preencher por cliente antes de compilar (0 / "" = sem trava) ----
+// Vale só para conta real. Conta demo e testador funcionam sempre (teste grátis).
+#define LIC_CONTA         0          // número da conta real liberada (0 = qualquer conta)
+#define LIC_VALIDADE      ""         // último dia de uso, "AAAA.MM.DD" ("" = sem validade)
+#define LIC_MAX_CONTRATOS 0          // máximo de contratos por entrada (0 = sem limite)
 
 enum ENUM_FORCA
   {
@@ -93,6 +99,8 @@ input int                  InpMaxReentradas = 0;                  // Reentradas 
 input int                  InpReentradaMin  = 5;                  // Minutos para o preço voltar à entrada
 
 CTrade   trade;
+double   g_contratos     = 0;     // contratos por entrada, já limitados pela licença
+bool     g_avisouLicenca = false;
 datetime g_ultimoCandle  = 0;
 double   g_stopPlanejado = 0;     // stop da entrada em andamento, aplicado assim que a posição abre
 bool     g_parcialFeita  = false;
@@ -159,6 +167,27 @@ int      g_falhasParcial = 0;          // recusas da ordem limitada nesta posiç
 //+------------------------------------------------------------------+
 int OnInit()
   {
+   g_contratos = InpContratos;
+   if(LicencaAplica())
+     {
+      if(LIC_CONTA != 0 && AccountInfoInteger(ACCOUNT_LOGIN) != (long)LIC_CONTA)
+        {
+         Alert(StringFormat("CohenScalper: esta licença não é da conta %I64d. Fale com o suporte da Trader Nation.",
+                            AccountInfoInteger(ACCOUNT_LOGIN)));
+         return INIT_FAILED;
+        }
+      if(LIC_MAX_CONTRATOS > 0 && g_contratos > LIC_MAX_CONTRATOS)
+        {
+         PrintFormat("Licença permite até %d contratos: operando com %d.", LIC_MAX_CONTRATOS, LIC_MAX_CONTRATOS);
+         g_contratos = LIC_MAX_CONTRATOS;
+        }
+      if(LicencaVencida())
+         Alert(StringFormat("CohenScalper: licença vencida em %s. O robô só termina de cuidar da posição aberta e não abre novas operações.",
+                            LIC_VALIDADE));
+      else if(StringLen(LIC_VALIDADE) > 0)
+         PrintFormat("Licença válida até %s.", LIC_VALIDADE);
+     }
+
    g_tick = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
    if(g_tick <= 0)
      {
@@ -184,12 +213,12 @@ int OnInit()
    if(!ParseHorariosBloqueados(InpHorariosBloq))
       return INIT_PARAMETERS_INCORRECT;
 
-   if(AjustarVolume(InpContratos) <= 0 || InpAlvoPts <= 0 || InpStopFolgaTicks < 0)
+   if(AjustarVolume(g_contratos) <= 0 || InpAlvoPts <= 0 || InpStopFolgaTicks < 0)
      {
       Print("Contratos, alvo ou folga do stop inválidos.");
       return INIT_PARAMETERS_INCORRECT;
      }
-   if(MathMod(AjustarVolume(InpContratos), 2) != 0)
+   if(MathMod(AjustarVolume(g_contratos), 2) != 0)
      {
       Print("Contratos precisam ser pares.");
       return INIT_PARAMETERS_INCORRECT;
@@ -215,7 +244,7 @@ int OnInit()
    ulong t; long tipo; double vol, preco, sl, tp;
    if(BuscarPosicao(t, tipo, vol, preco, sl, tp))
      {
-      if(vol < AjustarVolume(InpContratos))
+      if(vol < AjustarVolume(g_contratos))
          g_parcialFeita = true;
       // Recompilou ou reiniciou com posição aberta: recupera o stop guardado.
       if(GlobalVariableCheck(NomeStopGuardado()))
@@ -226,7 +255,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.30 carregado");
+   Print("CohenScalper v1.31 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -245,7 +274,7 @@ void OnDeinit(const int reason)
    double reaisPorPonto = ReaisPorPonto();
    if(reaisPorPonto > 0)
       PrintFormat("Em R$ com %.0f contratos: resultado %.2f | drawdown máximo %.2f (sem emolumentos)",
-                  InpContratos, g_totalPts * reaisPorPonto * InpContratos, g_maxDD * reaisPorPonto * InpContratos);
+                  g_contratos, g_totalPts * reaisPorPonto * g_contratos, g_maxDD * reaisPorPonto * g_contratos);
    PrintFormat("Maior ganho: %s | maior perda: %s", g_descMaiorGanho, g_descMaiorPerda);
    if(g_reOps > 0)
       PrintFormat("Reentradas: %d operações, %.0f pts (já incluídas no total)", g_reOps, g_rePts);
@@ -392,11 +421,17 @@ void MonitorarReentrada(int minutoAgora)
    g_avisouSemStop    = false;
    g_falhasStop       = 0;
    g_entradaReentrada = true;
+   if(!LicencaPermiteEntrada())
+     {
+      g_reDir = 0;
+      g_entradaReentrada = false;
+      return;
+     }
 
    Registrar(iTime(_Symbol, InpTimeframe, 0),
              StringFormat("REENTRADA %s em %.0f (voltou à entrada depois do 0x0, restam %d)",
                           direcao > 0 ? "compra" : "venda", g_rePreco, g_reRestantes));
-   double volume = AjustarVolume(InpContratos);
+   double volume = AjustarVolume(g_contratos);
    if(direcao > 0)
       trade.Buy(volume, _Symbol, 0, 0, 0, "reentrada");
    else
@@ -628,13 +663,15 @@ int Sinal(string &motivo)
 //+------------------------------------------------------------------+
 void Entrar(int direcao)
   {
+   if(!LicencaPermiteEntrada())
+      return;
    double h1    = iHigh(_Symbol, InpTimeframe, 1);
    double l1    = iLow(_Symbol, InpTimeframe, 1);
    double folga = InpStopFolgaTicks * g_tick;
    double stop  = (direcao > 0) ? ArredondarPreco(l1 - folga) : ArredondarPreco(h1 + folga);
    double ask   = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
    double bid   = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-   double vol   = AjustarVolume(InpContratos);
+   double vol   = AjustarVolume(g_contratos);
 
    g_parcialFeita  = false;
    g_avisouSemStop = false;
@@ -701,7 +738,7 @@ void Entrar(int direcao)
         }
       g_precoReferencia = limite;
       g_recuou = true;   // MonitorarRetorno só cuida de cancelar se perder o sinal
-      double volume = AjustarVolume(InpContratos);
+      double volume = AjustarVolume(g_contratos);
       if(direcao > 0)
         {
          if(ask <= limite)
@@ -766,7 +803,7 @@ void MonitorarRetorno()
       if(g_retornoNoRobo && (bid - g_retornoPreco) * g_retornoDir >= 0)
         {
          g_retornoNoRobo = false;
-         double vol = AjustarVolume(InpContratos);
+         double vol = AjustarVolume(g_contratos);
          if(g_retornoDir > 0)
             trade.Buy(vol, _Symbol, 0, 0, 0, "retorno");
          else
@@ -786,7 +823,7 @@ void MonitorarRetorno()
       return;
 
    g_recuou = true;
-   double volume = AjustarVolume(InpContratos);
+   double volume = AjustarVolume(g_contratos);
    // Decide só pelo último negócio. O livro do servidor pode estar atrasado:
    // na v1.28, "livro já na abertura" fez o robô comprar a mercado no meio do
    // recuo, 200 pts abaixo da abertura.
@@ -838,7 +875,7 @@ void GerenciarPosicao(int minutoAgora)
    double bid = PrecoRef();
    double ask = bid;
    int    dir = (tipo == POSITION_TYPE_BUY) ? 1 : -1;
-   double volCheio = AjustarVolume(InpContratos);
+   double volCheio = AjustarVolume(g_contratos);
 
    if(PositionSelectByTicket(ticket))
      {
@@ -1241,6 +1278,35 @@ void RegistrarOperacao(long id)
              g_sinalTendencia > 0 ? "alta" : g_sinalTendencia < 0 ? "baixa" : "sem",
              DescreverEntrada() + (g_posReentrada ? "_reentrada" : ""));
    FileFlush(g_arquivo);
+  }
+
+//+------------------------------------------------------------------+
+//| Licença                                                          |
+//+------------------------------------------------------------------+
+// A trava vale só em conta real; demo e testador ficam livres.
+bool LicencaAplica()
+  {
+   if(MQLInfoInteger(MQL_TESTER) || MQLInfoInteger(MQL_OPTIMIZATION))
+      return false;
+   return AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_REAL;
+  }
+
+// Vence no fim do último dia, pelo horário do servidor (não pelo relógio do PC).
+bool LicencaVencida()
+  {
+   if(StringLen(LIC_VALIDADE) == 0)
+      return false;
+   return TimeTradeServer() >= StringToTime(LIC_VALIDADE) + 86400;
+  }
+
+bool LicencaPermiteEntrada()
+  {
+   if(!LicencaAplica() || !LicencaVencida())
+      return true;
+   if(!g_avisouLicenca)
+      PrintFormat("Licença vencida em %s: nenhuma operação nova.", LIC_VALIDADE);
+   g_avisouLicenca = true;
+   return false;
   }
 
 //+------------------------------------------------------------------+
