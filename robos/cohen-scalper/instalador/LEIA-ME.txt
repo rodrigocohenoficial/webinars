@@ -1,0 +1,18 @@
+CohenScalper - Trader Nation
+============================
+
+1. Descompacte esta pasta inteira (botao direito no .zip > Extrair tudo).
+2. De dois cliques em "Instalar CohenScalper.bat".
+   Se o Windows mostrar "O Windows protegeu o computador", clique em
+   "Mais informacoes" > "Executar assim mesmo".
+3. No MetaTrader 5:
+   - Navegador > Consultor Expert > botao direito > Atualizar
+   - Arraste o CohenScalper para o grafico do mini indice (WIN), tempo M5
+   - Aba Parametros: cole a sua chave de licenca no campo "Chave de licenca"
+   - Aba Comum: marque "Permitir Algotrading" e clique OK
+   - Deixe o botao "Algotrading" verde na barra de cima
+4. Confira na aba Experts (embaixo):
+   "Licenca da conta ... valida ate ..."
+
+Conta demo funciona sem chave: teste a vontade antes da conta real.
+Duvidas: suporte da Trader Nation.
