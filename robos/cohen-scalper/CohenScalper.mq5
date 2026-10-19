@@ -5,16 +5,14 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.31"
+#property version   "1.32"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
 
-// ---- Licença: preencher por cliente antes de compilar (0 / "" = sem trava) ----
-// Vale só para conta real. Conta demo e testador funcionam sempre (teste grátis).
-#define LIC_CONTA         0          // número da conta real liberada (0 = qualquer conta)
-#define LIC_VALIDADE      ""         // último dia de uso, "AAAA.MM.DD" ("" = sem validade)
-#define LIC_MAX_CONTRATOS 0          // máximo de contratos por entrada (0 = sem limite)
+// Segredo das chaves de licença (LIC_SEGREDO). Fica fora do git: copie o
+// CohenLicenca.mqh recebido para a mesma pasta deste arquivo antes de compilar.
+#include "CohenLicenca.mqh"
 
 enum ENUM_FORCA
   {
@@ -48,6 +46,9 @@ enum ENUM_FILTRO_TENDENCIA
    TEND_SEMPRE       = 1,   // Só a favor da tendência
    TEND_APOS_HORARIO = 2    // Livre até o horário, depois só a favor
   };
+
+input group "Licença"
+input string               InpChave         = "";                 // Chave de licença (só conta real; demo e testador são livres)
 
 input group "Sinal"
 input ENUM_TIMEFRAMES      InpTimeframe     = PERIOD_M5;          // Tempo gráfico do sinal
@@ -101,6 +102,9 @@ input int                  InpReentradaMin  = 5;                  // Minutos par
 CTrade   trade;
 double   g_contratos     = 0;     // contratos por entrada, já limitados pela licença
 bool     g_avisouLicenca = false;
+long     g_licConta      = 0;     // dados da chave de licença
+datetime g_licValidade   = 0;     // último dia de uso (00:00)
+int      g_licMax        = 0;
 datetime g_ultimoCandle  = 0;
 double   g_stopPlanejado = 0;     // stop da entrada em andamento, aplicado assim que a posição abre
 bool     g_parcialFeita  = false;
@@ -170,22 +174,37 @@ int OnInit()
    g_contratos = InpContratos;
    if(LicencaAplica())
      {
-      if(LIC_CONTA != 0 && AccountInfoInteger(ACCOUNT_LOGIN) != (long)LIC_CONTA)
+      if(!LerChave(InpChave))
         {
-         Alert(StringFormat("CohenScalper: esta licença não é da conta %I64d. Fale com o suporte da Trader Nation.",
-                            AccountInfoInteger(ACCOUNT_LOGIN)));
+         Alert("CohenScalper: chave de licença inválida. Confira a chave em Parâmetros > Licença ou fale com o suporte da Trader Nation.");
          return INIT_FAILED;
         }
-      if(LIC_MAX_CONTRATOS > 0 && g_contratos > LIC_MAX_CONTRATOS)
+      if(AccountInfoInteger(ACCOUNT_LOGIN) != g_licConta)
         {
-         PrintFormat("Licença permite até %d contratos: operando com %d.", LIC_MAX_CONTRATOS, LIC_MAX_CONTRATOS);
-         g_contratos = LIC_MAX_CONTRATOS;
+         Alert(StringFormat("CohenScalper: a chave é da conta %I64d e esta é a conta %I64d. Fale com o suporte da Trader Nation.",
+                            g_licConta, AccountInfoInteger(ACCOUNT_LOGIN)));
+         return INIT_FAILED;
+        }
+      if(g_licMax > 0 && g_contratos > g_licMax)
+        {
+         PrintFormat("Licença permite até %d contratos: operando com %d.", g_licMax, g_licMax);
+         g_contratos = g_licMax;
         }
       if(LicencaVencida())
          Alert(StringFormat("CohenScalper: licença vencida em %s. O robô só termina de cuidar da posição aberta e não abre novas operações.",
-                            LIC_VALIDADE));
-      else if(StringLen(LIC_VALIDADE) > 0)
-         PrintFormat("Licença válida até %s.", LIC_VALIDADE);
+                            TimeToString(g_licValidade, TIME_DATE)));
+      else
+         PrintFormat("Licença da conta %I64d válida até %s, até %d contratos.",
+                     g_licConta, TimeToString(g_licValidade, TIME_DATE), g_licMax);
+     }
+   else if(StringLen(InpChave) > 0 && !MQLInfoInteger(MQL_TESTER))
+     {
+      // Demo: a chave não é exigida, mas é conferida para o cliente testar antes da conta real.
+      if(LerChave(InpChave))
+         PrintFormat("Conta demo: chave conferida, válida para a conta real %I64d até %s, até %d contratos.",
+                     g_licConta, TimeToString(g_licValidade, TIME_DATE), g_licMax);
+      else
+         Print("Conta demo: a chave informada é inválida (na demo ela não é exigida).");
      }
 
    g_tick = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
@@ -255,7 +274,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.31 carregado");
+   Print("CohenScalper v1.32 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -1294,9 +1313,79 @@ bool LicencaAplica()
 // Vence no fim do último dia, pelo horário do servidor (não pelo relógio do PC).
 bool LicencaVencida()
   {
-   if(StringLen(LIC_VALIDADE) == 0)
+   return TimeTradeServer() >= g_licValidade + 86400;
+  }
+
+// Chave: CONTA-AAAAMMDD-CONTRATOS-ASSINATURA, ex.: 2016720-20261103-2-9F3A1C0B7D2E4F61.
+// Assinatura = 16 primeiros hex de HMAC-SHA256(LIC_SEGREDO, "CONTA|AAAAMMDD|CONTRATOS").
+bool LerChave(string chave)
+  {
+   StringTrimLeft(chave);
+   StringTrimRight(chave);
+   StringToUpper(chave);
+   string partes[];
+   if(StringSplit(chave, '-', partes) != 4)
       return false;
-   return TimeTradeServer() >= StringToTime(LIC_VALIDADE) + 86400;
+   if(!SoDigitos(partes[0]) || !SoDigitos(partes[1]) || StringLen(partes[1]) != 8 ||
+      !SoDigitos(partes[2]) || StringLen(partes[3]) != 16)
+      return false;
+   string esperado = StringSubstr(HmacSha256Hex(LIC_SEGREDO, partes[0] + "|" + partes[1] + "|" + partes[2]), 0, 16);
+   if(esperado != partes[3])
+      return false;
+   g_licConta    = StringToInteger(partes[0]);
+   g_licValidade = StringToTime(StringSubstr(partes[1], 0, 4) + "." + StringSubstr(partes[1], 4, 2) + "." +
+                                StringSubstr(partes[1], 6, 2));
+   g_licMax      = (int)StringToInteger(partes[2]);
+   return g_licConta > 0 && g_licValidade > 0;
+  }
+
+bool SoDigitos(const string s)
+  {
+   if(StringLen(s) == 0)
+      return false;
+   for(int i = 0; i < StringLen(s); i++)
+     {
+      ushort c = StringGetCharacter(s, i);
+      if(c < '0' || c > '9')
+         return false;
+     }
+   return true;
+  }
+
+string HmacSha256Hex(const string segredo, const string msg)
+  {
+   uchar chave[], dados[], vazio[], resumo[];
+   StringToCharArray(segredo, chave, 0, StringLen(segredo), CP_UTF8);
+   StringToCharArray(msg, dados, 0, StringLen(msg), CP_UTF8);
+   if(ArraySize(chave) > 64)
+     {
+      CryptEncode(CRYPT_HASH_SHA256, chave, vazio, resumo);
+      ArrayFree(chave);
+      ArrayCopy(chave, resumo);
+     }
+   int n = ArraySize(chave);
+   ArrayResize(chave, 64);
+   for(int i = n; i < 64; i++)
+      chave[i] = 0;
+
+   uchar interno[], externo[], h1[], h2[];
+   ArrayResize(interno, 64 + ArraySize(dados));
+   ArrayResize(externo, 64);
+   for(int i = 0; i < 64; i++)
+     {
+      interno[i] = (uchar)(chave[i] ^ 0x36);
+      externo[i] = (uchar)(chave[i] ^ 0x5C);
+     }
+   ArrayCopy(interno, dados, 64, 0);
+   CryptEncode(CRYPT_HASH_SHA256, interno, vazio, h1);
+   ArrayResize(externo, 64 + ArraySize(h1));
+   ArrayCopy(externo, h1, 64, 0);
+   CryptEncode(CRYPT_HASH_SHA256, externo, vazio, h2);
+
+   string hex = "";
+   for(int i = 0; i < ArraySize(h2); i++)
+      hex += StringFormat("%02X", h2[i]);
+   return hex;
   }
 
 bool LicencaPermiteEntrada()
@@ -1304,7 +1393,7 @@ bool LicencaPermiteEntrada()
    if(!LicencaAplica() || !LicencaVencida())
       return true;
    if(!g_avisouLicenca)
-      PrintFormat("Licença vencida em %s: nenhuma operação nova.", LIC_VALIDADE);
+      PrintFormat("Licença vencida em %s: nenhuma operação nova.", TimeToString(g_licValidade, TIME_DATE));
    g_avisouLicenca = true;
    return false;
   }
