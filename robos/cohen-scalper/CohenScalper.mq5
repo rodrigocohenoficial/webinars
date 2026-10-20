@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.34"
+#property version   "1.35"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -80,7 +80,7 @@ input double               InpAlvoPts         = 80;               // Alvo final 
 
 input group "Horários"
 input string               InpInicio        = "09:15";            // Início das entradas
-input int                  InpUltimaEntrada = 1500;               // Última entrada (HHMM, ex.: 1300 = 13:00; otimizável)
+input int                  InpUltimaEntrada = 1300;               // Última entrada (HHMM, ex.: 1300 = 13:00; otimizável)
 input string               InpZerar         = "17:30";            // Zera posição
 input bool                 InpBloquearHorarios = false;           // Não entrar nos horários abaixo
 input string               InpHorariosBloq  = "09:30,10:00,10:30,11:00,11:30"; // Horários sem entrada
@@ -274,7 +274,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.34 carregado");
+   Print("CohenScalper v1.35 carregado");
    return INIT_SUCCEEDED;
   }
 
