@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.32"
+#property version   "1.33"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -274,7 +274,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.32 carregado");
+   Print("CohenScalper v1.33 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -801,8 +801,18 @@ void MonitorarRetorno()
       return;
      }
 
-   double bid = PrecoRef();
-   double ask = bid;
+   // Recuo e invalidação pelo livro (bid na compra, ask na venda), como na v1.27,
+   // a versão validada: medir pelo último negócio armou mais tarde ou não armou
+   // (850 entradas atrasadas, cerca de 12 mil pts a menos de 2022 a 2026).
+   // A decisão de entrar continua pelo último negócio.
+   double ultimo = PrecoRef();
+   double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   if(bid <= 0 || ask <= 0)
+     {
+      bid = ultimo;
+      ask = ultimo;
+     }
 
    // Perdeu o candle sinal antes de entrar: setup invalidado.
    if((g_retornoDir > 0 && bid <= g_stopPlanejado) || (g_retornoDir < 0 && ask >= g_stopPlanejado))
@@ -819,7 +829,7 @@ void MonitorarRetorno()
      {
       // Ordem stop recusada: o robô entra a mercado quando o último negócio
       // voltar à abertura (é o que a ordem stop faria no servidor).
-      if(g_retornoNoRobo && (bid - g_retornoPreco) * g_retornoDir >= 0)
+      if(g_retornoNoRobo && (ultimo - g_retornoPreco) * g_retornoDir >= 0)
         {
          g_retornoNoRobo = false;
          double vol = AjustarVolume(g_contratos);
@@ -836,8 +846,11 @@ void MonitorarRetorno()
    else
       g_retornoExtremo = MathMax(g_retornoExtremo, ask);
 
-   bool recuou = (g_retornoDir > 0) ? bid <= g_retornoPreco - g_retornoRecuo
-                                    : ask >= g_retornoPreco + g_retornoRecuo;
+   // O último negócio também precisa estar do outro lado da abertura: com o
+   // livro atrasado (conta demo), o recuo do livro sozinho entraria a mercado
+   // sem o preço ter recuado de verdade.
+   bool recuou = (g_retornoDir > 0) ? bid <= g_retornoPreco - g_retornoRecuo && ultimo < g_retornoPreco
+                                    : ask >= g_retornoPreco + g_retornoRecuo && ultimo > g_retornoPreco;
    if(!recuou)
       return;
 
@@ -846,7 +859,7 @@ void MonitorarRetorno()
    // Decide só pelo último negócio. O livro do servidor pode estar atrasado:
    // na v1.28, "livro já na abertura" fez o robô comprar a mercado no meio do
    // recuo, 200 pts abaixo da abertura.
-   if((bid - g_retornoPreco) * g_retornoDir >= 0)
+   if((ultimo - g_retornoPreco) * g_retornoDir >= 0)
      {
       if(g_retornoDir > 0)
          trade.Buy(volume, _Symbol, 0, 0, 0, "retorno");
@@ -955,10 +968,9 @@ void GerenciarPosicao(int minutoAgora)
    if(preco <= 0)
       return;
    double alvo = ArredondarPreco(preco + dir * InpAlvoPts);
-   // Com parcial, o alvo do servidor só entra depois dela: antes, um alvo no
-   // servidor e a parcial do robô podiam executar juntos e virar a mão.
+   // Alvo no servidor desde a entrada. A parcial é uma ordem limitada antes do
+   // alvo, então o preço passa por ela primeiro e não há corrida entre as duas.
    bool usaParcial  = (InpParcialPts > 0 && InpParcialPts < InpAlvoPts);
-   bool alvoNoServ  = !usaParcial || g_parcialFeita;
 
    // Stop (e alvo, se for o caso) entram logo após a execução.
    if(sl == 0 && tp == 0)
@@ -982,7 +994,7 @@ void GerenciarPosicao(int minutoAgora)
          trade.PositionClose(ticket);
          return;
         }
-      bool ok = trade.PositionModify(ticket, g_stopPlanejado, alvoNoServ ? alvo : 0.0) &&
+      bool ok = trade.PositionModify(ticket, g_stopPlanejado, alvo) &&
                 trade.ResultRetcode() == TRADE_RETCODE_DONE;
       if(!ok && ++g_falhasStop >= 5)
         {
@@ -1091,28 +1103,33 @@ void GerenciarPosicao(int minutoAgora)
         }
      }
 
-   // Antes da parcial o alvo não está no servidor: o robô executa na hora.
-   if(!alvoNoServ && (bid - alvo) * dir >= 0)
+   // Stop/alvo do servidor com o robô de reserva.
+   // No testador o servidor da B3 às vezes não executa: o robô zera na hora,
+   // pelo livro (bid na compra, ask na venda), como na v1.27 validada.
+   // Em conta o servidor executa pelo último negócio em milissegundos: o robô
+   // só zera se o último ficar além do nível por 3 s (sem a espera, robô e
+   // servidor zerariam juntos e virariam a mão). No testador a espera custou
+   // cerca de 13 mil pts em stops piores.
+   bool   testador  = (bool)MQLInfoInteger(MQL_TESTER);
+   double precoSaida = bid;
+   if(testador)
      {
-      g_motivoSaida = "alvo";
-      trade.PositionClose(ticket);
-      return;
+      double livro = (dir > 0) ? SymbolInfoDouble(_Symbol, SYMBOL_BID) : SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+      if(livro > 0)
+         precoSaida = livro;
      }
-
-   // Stop/alvo do servidor: ele executa primeiro. Se o preço ficar além do nível
-   // por 3 s e a posição continuar aberta, o robô zera (no testador o servidor às
-   // vezes não executa). Sem a espera, robô e servidor zerariam juntos.
-   bool alemStop = sl > 0 && (bid - sl) * dir <= 0;
-   bool alemAlvo = tp > 0 && (bid - tp) * dir >= 0;
+   bool alemStop = sl > 0 && (precoSaida - sl) * dir <= 0;
+   bool alemAlvo = tp > 0 && (precoSaida - tp) * dir >= 0;
    if(alemStop || alemAlvo)
      {
       if(g_tCruzou == 0)
          g_tCruzou = TimeCurrent();
-      if(TimeCurrent() - g_tCruzou >= 3)
+      if(testador || TimeCurrent() - g_tCruzou >= 3)
         {
          g_motivoSaida = alemAlvo ? "alvo" : (MathAbs(sl - preco) < g_tick / 2 ? "0x0" : "stop");
-         PrintFormat("Saída pelo robô (servidor não executou em 3 s): %s, último %.0f, stop %.0f, alvo %.0f",
-                     g_motivoSaida, bid, sl, tp);
+         if(!testador || InpRegistrarDecisoes)
+            PrintFormat("Saída pelo robô: %s, preço %.0f, stop %.0f, alvo %.0f",
+                        g_motivoSaida, precoSaida, sl, tp);
          trade.PositionClose(ticket);
         }
       return;
