@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.33"
+#property version   "1.34"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -274,7 +274,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.33 carregado");
+   Print("CohenScalper v1.34 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -915,7 +915,17 @@ void GerenciarPosicao(int minutoAgora)
       if(id != g_posId)
         {
          if(g_posId != 0)
+           {
+            // A posição anterior fechou e outra abriu entre dois ticks.
             RegistrarOperacao(g_posId);
+            GlobalVariableDel(NomeStopGuardado());
+            g_ultimaDir = g_posDir;
+            g_tUltimoFechamento = TimeCurrent();
+            g_parcialFeita = false;
+            g_volAntesParcial = 0;
+            g_falhasParcial = 0;
+            CancelarParcial();
+           }
          g_posId = id;
          g_posDir = dir;
          g_posStop = g_stopPlanejado;
@@ -968,9 +978,11 @@ void GerenciarPosicao(int minutoAgora)
    if(preco <= 0)
       return;
    double alvo = ArredondarPreco(preco + dir * InpAlvoPts);
-   // Alvo no servidor desde a entrada. A parcial é uma ordem limitada antes do
-   // alvo, então o preço passa por ela primeiro e não há corrida entre as duas.
+   // Com parcial, o alvo do servidor só entra depois dela. Com os dois no
+   // servidor, um salto de preço executava o alvo e depois a parcial limitada,
+   // que abria uma posição contrária (1.373 vezes no teste da v1.33).
    bool usaParcial  = (InpParcialPts > 0 && InpParcialPts < InpAlvoPts);
+   bool alvoNoServ  = !usaParcial || g_parcialFeita;
 
    // Stop (e alvo, se for o caso) entram logo após a execução.
    if(sl == 0 && tp == 0)
@@ -994,7 +1006,7 @@ void GerenciarPosicao(int minutoAgora)
          trade.PositionClose(ticket);
          return;
         }
-      bool ok = trade.PositionModify(ticket, g_stopPlanejado, alvo) &&
+      bool ok = trade.PositionModify(ticket, g_stopPlanejado, alvoNoServ ? alvo : 0.0) &&
                 trade.ResultRetcode() == TRADE_RETCODE_DONE;
       if(!ok && ++g_falhasStop >= 5)
         {
@@ -1103,13 +1115,8 @@ void GerenciarPosicao(int minutoAgora)
         }
      }
 
-   // Stop/alvo do servidor com o robô de reserva.
-   // No testador o servidor da B3 às vezes não executa: o robô zera na hora,
-   // pelo livro (bid na compra, ask na venda), como na v1.27 validada.
-   // Em conta o servidor executa pelo último negócio em milissegundos: o robô
-   // só zera se o último ficar além do nível por 3 s (sem a espera, robô e
-   // servidor zerariam juntos e virariam a mão). No testador a espera custou
-   // cerca de 13 mil pts em stops piores.
+   // Saídas do robô: no testador pelo livro (bid na compra, ask na venda), como
+   // na v1.27 validada; em conta pelo último negócio, que é o que o servidor usa.
    bool   testador  = (bool)MQLInfoInteger(MQL_TESTER);
    double precoSaida = bid;
    if(testador)
@@ -1118,6 +1125,22 @@ void GerenciarPosicao(int minutoAgora)
       if(livro > 0)
          precoSaida = livro;
      }
+
+   // Antes da parcial o alvo não está no servidor: o robô executa na hora.
+   if(!alvoNoServ && (precoSaida - alvo) * dir >= 0)
+     {
+      g_motivoSaida = "alvo";
+      trade.PositionClose(ticket);
+      return;
+     }
+
+   // Stop/alvo do servidor com o robô de reserva.
+   // No testador o servidor da B3 às vezes não executa: o robô zera na hora,
+   // pelo livro (bid na compra, ask na venda), como na v1.27 validada.
+   // Em conta o servidor executa pelo último negócio em milissegundos: o robô
+   // só zera se o último ficar além do nível por 3 s (sem a espera, robô e
+   // servidor zerariam juntos e virariam a mão). No testador a espera custou
+   // cerca de 13 mil pts em stops piores.
    bool alemStop = sl > 0 && (precoSaida - sl) * dir <= 0;
    bool alemAlvo = tp > 0 && (precoSaida - tp) * dir >= 0;
    if(alemStop || alemAlvo)
