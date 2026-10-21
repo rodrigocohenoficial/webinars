@@ -1,18 +1,36 @@
 CohenScalper - Trader Nation
 ============================
 
+INSTALAR
 1. Descompacte esta pasta inteira (botao direito no .zip > Extrair tudo).
 2. De dois cliques em "Instalar CohenScalper.bat".
    Se o Windows mostrar "O Windows protegeu o computador", clique em
    "Mais informacoes" > "Executar assim mesmo".
 3. No MetaTrader 5:
    - Navegador > Consultor Expert > botao direito > Atualizar
-   - Arraste o CohenScalper para o grafico do mini indice (WIN), tempo M5
-   - Aba Parametros: cole a sua chave de licenca no campo "Chave de licenca"
+   - Abra o grafico do mini indice do VENCIMENTO ATUAL (ex.: WINZ26),
+     tempo M5. Nao use WIN$ nem WIN$N: eles sao so para historico.
+   - Arraste o CohenScalper para esse grafico
+   - Aba Parametros: cole a sua chave no campo "Chave de licenca".
+     Nao mude os outros parametros.
    - Aba Comum: marque "Permitir Algotrading" e clique OK
    - Deixe o botao "Algotrading" verde na barra de cima
 4. Confira na aba Experts (embaixo):
-   "Licenca da conta ... valida ate ..."
+   "CohenScalper v... carregado" e "Licenca da conta ... valida ate ..."
+
+TODO VENCIMENTO DO MINI INDICE (a cada 2 meses)
+O contrato vence na quarta-feira mais proxima do dia 15 dos meses pares.
+No dia do vencimento, depois do pregao, abra o grafico do novo contrato
+(ex.: WINZ26 > WING27), arraste o robo de novo com a mesma chave e feche
+o grafico antigo. No contrato vencido o robo nao opera.
+
+FUNCIONAMENTO
+- Entra das 9h15 as 13h. Zera tudo ate as 17h30.
+- O MetaTrader precisa ficar aberto e conectado no horario do pregao
+  (computador ligado ou VPS da MetaQuotes).
+- O resultado simulado considera corretagem zero no mini indice.
+  Confira a tarifa da sua corretora antes de operar.
 
 Conta demo funciona sem chave: teste a vontade antes da conta real.
+Resultados passados, inclusive simulados, nao garantem resultados futuros.
 Duvidas: suporte da Trader Nation.
