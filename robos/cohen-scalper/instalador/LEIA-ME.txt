@@ -18,6 +18,14 @@ INSTALAR
 4. Confira na aba Experts (embaixo):
    "CohenScalper v... carregado" e "Licenca da conta ... valida ate ..."
 
+NO MAC (sem o instalador .bat, que e so para Windows)
+1. No MetaTrader 5: Arquivo > Abrir pasta de dados.
+2. No Finder que abrir, entre em MQL5 > Experts e copie o CohenScalper.ex5
+   para dentro dela.
+3. Volte ao MetaTrader e siga a partir do passo 3 acima (Navegador > Atualizar).
+O Mac nao pode dormir no horario do pregao: desligue o repouso ou use a VPS
+da MetaQuotes.
+
 TODO VENCIMENTO DO MINI INDICE (a cada 2 meses)
 O contrato vence na quarta-feira mais proxima do dia 15 dos meses pares.
 No dia do vencimento, depois do pregao, abra o grafico do novo contrato
