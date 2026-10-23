@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.36"
+#property version   "1.37"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -77,6 +77,7 @@ input double               InpParcialPts      = 60;               // Parcial (po
 input double               InpParcialPct      = 50;               // Tamanho da parcial (% da posição)
 input bool                 InpZeroAposParcial = true;             // Stop no 0x0 ao bater a parcial
 input double               InpAlvoPts         = 80;               // Alvo final (pontos)
+input bool                 InpAlvoLimitado    = true;             // Alvo final como ordem limitada no livro (sai no preço do alvo)
 
 input group "Horários"
 input string               InpInicio        = "09:15";            // Início das entradas
@@ -168,6 +169,9 @@ int      g_ultimaDir     = 0;          // direção da última posição fechada
 datetime g_tUltimoFechamento = 0;      // quando a última posição fechou
 ulong    g_ticketParcial = 0;          // ordem limitada da parcial, pendente no servidor
 int      g_falhasParcial = 0;          // recusas da ordem limitada nesta posição
+ulong    g_ticketAlvo    = 0;          // ordem limitada do alvo final, pendente no servidor
+bool     g_alvoColocado  = false;      // o alvo limitado desta posição já foi colocado
+int      g_falhasAlvo    = 0;          // recusas da ordem limitada do alvo nesta posição
 
 //+------------------------------------------------------------------+
 int OnInit()
@@ -275,7 +279,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.36 carregado");
+   Print("CohenScalper v1.37 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -909,6 +913,9 @@ void GerenciarPosicao(int minutoAgora)
       g_tCruzou = 0;
       g_falhasParcial = 0;
       CancelarParcial();   // sem posição, uma parcial pendente abriria posição contrária
+      g_alvoColocado = false;
+      g_falhasAlvo = 0;
+      CancelarAlvo();      // idem para o alvo limitado
       return;
      }
 
@@ -934,6 +941,9 @@ void GerenciarPosicao(int minutoAgora)
             g_volAntesParcial = 0;
             g_falhasParcial = 0;
             CancelarParcial();
+            g_alvoColocado = false;
+            g_falhasAlvo = 0;
+            CancelarAlvo();
            }
          g_posId = id;
          g_posDir = dir;
@@ -991,7 +1001,11 @@ void GerenciarPosicao(int minutoAgora)
    // servidor, um salto de preço executava o alvo e depois a parcial limitada,
    // que abria uma posição contrária (1.373 vezes no teste da v1.33).
    bool usaParcial  = (InpParcialPts > 0 && InpParcialPts < InpAlvoPts);
-   bool alvoNoServ  = !usaParcial || g_parcialFeita;
+   // Alvo limitado: fica no livro como ordem limitada e não vai para o T/P da
+   // posição. Pelo T/P, a XP manda ordem a mercado quando o preço toca o alvo e,
+   // na conta real (23/10), a saída veio em média 9 pts pior que o alvo.
+   bool alvoLimitado = InpAlvoLimitado && g_falhasAlvo < 3;
+   bool alvoNoServ   = !alvoLimitado && (!usaParcial || g_parcialFeita);
 
    // Stop (e alvo, se for o caso) entram logo após a execução.
    if(sl == 0 && tp == 0)
@@ -1075,6 +1089,34 @@ void GerenciarPosicao(int minutoAgora)
         }
      }
 
+   // Alvo final como ordem limitada, colocado logo depois do stop, para o que
+   // não sai na parcial. Parcial e alvo somam a posição: num salto de preço que
+   // execute os dois, a posição só zera, não vira.
+   if(alvoLimitado)
+     {
+      if(g_ticketAlvo != 0 && !OrderSelect(g_ticketAlvo))
+         g_ticketAlvo = 0;   // executou ou saiu do livro; sem ela, o robô cuida do alvo
+      else if(!g_alvoColocado)
+        {
+         double volParc = (usaParcial && !g_parcialFeita) ? AjustarVolume(volCheio * InpParcialPct / 100.0) : 0;
+         double volAlvo = AjustarVolume(volume - volParc);
+         if(volAlvo > 0 && (alvo - bid) * dir > 0)
+           {
+            bool ok = (dir > 0) ? trade.SellLimit(volAlvo, alvo, _Symbol, 0, 0, TipoValidade(), 0, "alvo")
+                                : trade.BuyLimit(volAlvo, alvo, _Symbol, 0, 0, TipoValidade(), 0, "alvo");
+            uint rc = trade.ResultRetcode();
+            if(ok && (rc == TRADE_RETCODE_DONE || rc == TRADE_RETCODE_PLACED) && trade.ResultOrder() > 0)
+              {
+               g_ticketAlvo   = trade.ResultOrder();
+               g_alvoColocado = true;
+               PrintFormat("Alvo limitado: %s %.0f a %.0f", dir > 0 ? "venda" : "compra", volAlvo, alvo);
+              }
+            else if(++g_falhasAlvo >= 3)
+               PrintFormat("Ordem limitada do alvo recusada (código %u). O alvo vai para o servidor.", rc);
+           }
+        }
+     }
+
    // Parcial enviada a mercado e ainda não refletida na posição: não manda outra
    // ordem de saída (venderia a mais). O stop do servidor continua protegendo.
    if(g_parcialFeita && g_volAntesParcial > 0)
@@ -1093,17 +1135,18 @@ void GerenciarPosicao(int minutoAgora)
       g_volAntesParcial = 0;
      }
 
-   // Depois da parcial: stop no 0x0 e alvo do resto no servidor. Confere a cada
-   // tick; enquanto o servidor não aceitar, o robô usa os mesmos níveis.
+   // Depois da parcial: stop no 0x0 (e o alvo do resto no servidor, se não for
+   // limitado). Confere a cada tick; enquanto o servidor não aceitar, o robô usa
+   // os mesmos níveis.
    if(g_parcialFeita)
      {
       double stopDepois = InpZeroAposParcial ? ArredondarPreco(preco) : sl;
       bool faltaStop = (stopDepois - sl) * dir > g_tick / 2;
-      bool faltaAlvo = MathAbs(tp - alvo) > g_tick / 2;
+      bool faltaAlvo = alvoNoServ && MathAbs(tp - alvo) > g_tick / 2;
       if(faltaStop || faltaAlvo)
         {
-         bool podeModificar = (bid - stopDepois) * dir > 0 && (alvo - bid) * dir > 0;
-         if(podeModificar && trade.PositionModify(ticket, stopDepois, alvo) &&
+         bool podeModificar = (bid - stopDepois) * dir > 0 && (!alvoNoServ || (alvo - bid) * dir > 0);
+         if(podeModificar && trade.PositionModify(ticket, stopDepois, alvoNoServ ? alvo : tp) &&
             trade.ResultRetcode() == TRADE_RETCODE_DONE)
             PrintFormat("Depois da parcial: stop %.0f, alvo %.0f", stopDepois, alvo);
          // Níveis que o servidor ainda não tem: o robô executa sem esperar.
@@ -1120,7 +1163,8 @@ void GerenciarPosicao(int minutoAgora)
             return;
            }
          sl = stopDepois;
-         tp = alvo;
+         if(alvoNoServ)
+            tp = alvo;
         }
      }
 
@@ -1135,8 +1179,8 @@ void GerenciarPosicao(int minutoAgora)
          precoSaida = livro;
      }
 
-   // Antes da parcial o alvo não está no servidor: o robô executa na hora.
-   if(!alvoNoServ && (precoSaida - alvo) * dir >= 0)
+   // Alvo fora do servidor e sem ordem limitada no livro: o robô executa na hora.
+   if(!alvoNoServ && g_ticketAlvo == 0 && (precoSaida - alvo) * dir >= 0)
      {
       g_motivoSaida = "alvo";
       trade.PositionClose(ticket);
@@ -1604,17 +1648,24 @@ double PrecoDaEntrada(long idPosicao)
    return 0;
   }
 
-// Ordens de entrada pendentes. A parcial da posição aberta fica.
+// Ordens de entrada pendentes. A parcial e o alvo da posição aberta ficam.
 void CancelarPendentes()
   {
    for(int i = OrdersTotal() - 1; i >= 0; i--)
      {
       ulong t = OrderGetTicket(i);
-      if(t == 0 || t == g_ticketParcial || OrderGetString(ORDER_SYMBOL) != _Symbol)
+      if(t == 0 || t == g_ticketParcial || t == g_ticketAlvo || OrderGetString(ORDER_SYMBOL) != _Symbol)
          continue;
       if((ulong)OrderGetInteger(ORDER_MAGIC) == InpMagic)
          trade.OrderDelete(t);
      }
+  }
+
+void CancelarAlvo()
+  {
+   if(g_ticketAlvo != 0 && OrderSelect(g_ticketAlvo))
+      trade.OrderDelete(g_ticketAlvo);
+   g_ticketAlvo = 0;
   }
 
 void CancelarParcial()
