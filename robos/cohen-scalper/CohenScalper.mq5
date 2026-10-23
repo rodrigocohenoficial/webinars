@@ -5,7 +5,7 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 #property copyright "Rodrigo Cohen"
-#property version   "1.35"
+#property version   "1.36"
 #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
@@ -91,6 +91,7 @@ input double               InpContratos     = 2;                  // Contratos p
 input double               InpMetaDiaPts    = 1500;               // Meta do dia (pontos, 0 = sem meta)
 input double               InpLossDiaPts    = 500;                // Loss máximo do dia (pontos, 0 = sem limite)
 input int                  InpMaxOperacoes  = 0;                  // Máximo de operações no dia (0 = sem limite)
+input int                  InpMaxStopsDia   = 2;                  // Para no dia depois de N stops (perda > 30 pts; 0 = sem limite)
 input ulong                InpMagic         = 2026100;            // Número mágico
 input bool                 InpRegistrarDecisoes = false;          // Escrever no Diário o motivo de cada candle
 input bool                 InpGravarCSV     = false;              // Gravar as operações em CSV (pasta Common/Files)
@@ -274,7 +275,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.35 carregado");
+   Print("CohenScalper v1.36 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -409,7 +410,7 @@ void MonitorarReentrada(int minutoAgora)
    double bid = PrecoRef();
    double ask = bid;
    bool perdeuSinal = (g_reDir > 0) ? bid <= g_reStop : ask >= g_reStop;
-   if(TimeCurrent() > g_reAte || perdeuSinal || minutoAgora > g_minUltima || minutoAgora >= g_minZerar)
+   if(TimeCurrent() > g_reAte || perdeuSinal || minutoAgora >= g_minUltima || minutoAgora >= g_minZerar)
      {
       g_reDir = 0;
       return;
@@ -420,11 +421,12 @@ void MonitorarReentrada(int minutoAgora)
       return;
 
    double pontosDia;
-   int    operacoes;
-   ResultadoDoDia(pontosDia, operacoes);
+   int    operacoes, stops;
+   ResultadoDoDia(pontosDia, operacoes, stops);
    if((InpMetaDiaPts > 0 && pontosDia >= InpMetaDiaPts) ||
       (InpLossDiaPts > 0 && pontosDia <= -InpLossDiaPts) ||
-      (InpMaxOperacoes > 0 && operacoes >= InpMaxOperacoes))
+      (InpMaxOperacoes > 0 && operacoes >= InpMaxOperacoes) ||
+      (InpMaxStopsDia > 0 && stops >= InpMaxStopsDia))
      {
       g_reDir = 0;
       return;
@@ -473,8 +475,10 @@ void NovoCandle(datetime abertura)
    CancelarPendentes();   // a entrada por retorno só vale durante um candle
    g_retornoDir = 0;
 
+   // A entrada acontece durante este candle: ele precisa abrir antes da última
+   // entrada (com 13:00, o último é o das 12:55 e nada entra a partir das 13:00).
    int minuto = MinutoDoDia(abertura);
-   if(minuto < g_minInicio || minuto > g_minUltima || minuto >= g_minZerar)
+   if(minuto < g_minInicio || minuto >= g_minUltima || minuto >= g_minZerar)
       return;             // fora do horário: sem registro no Diário
 
    ulong t; long tipo; double vol, preco, sl, tp;
@@ -499,8 +503,8 @@ void NovoCandle(datetime abertura)
      }
 
    double pontosDia;
-   int    operacoes;
-   ResultadoDoDia(pontosDia, operacoes);
+   int    operacoes, stops;
+   ResultadoDoDia(pontosDia, operacoes, stops);
    if(InpMetaDiaPts > 0 && pontosDia >= InpMetaDiaPts)
      {
       Registrar(abertura, StringFormat("sem entrada: meta do dia atingida (%.0f pts)", pontosDia));
@@ -514,6 +518,11 @@ void NovoCandle(datetime abertura)
    if(InpMaxOperacoes > 0 && operacoes >= InpMaxOperacoes)
      {
       Registrar(abertura, StringFormat("sem entrada: máximo de %d operações no dia", operacoes));
+      return;
+     }
+   if(InpMaxStopsDia > 0 && stops >= InpMaxStopsDia)
+     {
+      Registrar(abertura, StringFormat("sem entrada: %d stops no dia", stops));
       return;
      }
 
@@ -1195,10 +1204,12 @@ bool FecharParcial(ulong ticket, long tipo, double vol)
 //| Resultado do dia em pontos, só das posições abertas pelo robô.   |
 //| Calculado pelos preços executados: no WIN$N o MT5 zera o lucro.  |
 //+------------------------------------------------------------------+
-void ResultadoDoDia(double &pontos, int &operacoes)
+// Stop é a operação que perdeu mais de 30 pts; saída no 0x0 com escorregão não conta.
+void ResultadoDoDia(double &pontos, int &operacoes, int &stops)
   {
    pontos    = 0;
    operacoes = 0;
+   stops     = 0;
    if(!HistorySelect(InicioDoDia(TimeCurrent()), TimeCurrent() + 60))
       return;
 
@@ -1231,7 +1242,11 @@ void ResultadoDoDia(double &pontos, int &operacoes)
       datetime tEntrada, tSaida;
       int dir;
       if(DadosDaPosicao(ids[k], pts, tEntrada, tSaida, dir, entrada, parcial, saida))
+        {
          pontos += pts;
+         if(pts < -30)
+            stops++;
+        }
      }
   }
 
