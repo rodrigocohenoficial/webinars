@@ -4,9 +4,28 @@
 //|  seguinte, parcial com stop no 0x0 e alvo final.                 |
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
-#property copyright "Rodrigo Cohen"
+// Versão do aluno: compile o arquivo do aluno, que define VERSAO_ALUNO e o nome
+// do robô antes de incluir este. Nela a estratégia fica fixa (só a chave e os
+// contratos são editáveis) e os logs, os comentários das ordens e a descrição
+// não mostram a regra.
+#ifdef VERSAO_ALUNO
+   #ifndef NOME_ROBO
+      #define NOME_ROBO "Robo"
+   #endif
+   #define PARAM     const
+   #define DETALHES  false
+   #define COMENT(x) NOME_ROBO
+   #property copyright   "Rodrigo Cohen - Trader Nation"
+   #property description "Robô de day trade para o mini índice (WIN), gráfico de 5 minutos."
+#else
+   #define PARAM     input
+   #define DETALHES  true
+   #define COMENT(x) x
+   #define NOME_ROBO "CohenScalper"
+   #property copyright   "Rodrigo Cohen"
+   #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
+#endif
 #property version   "1.37"
-#property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 
 #include <Trade\Trade.mqh>
 
@@ -47,59 +66,75 @@ enum ENUM_FILTRO_TENDENCIA
    TEND_APOS_HORARIO = 2    // Livre até o horário, depois só a favor
   };
 
+#ifndef VERSAO_ALUNO
 input group "Licença"
+#endif
 input string               InpChave         = "";                 // Chave de licença (só conta real; demo e testador são livres)
 
+#ifndef VERSAO_ALUNO
 input group "Sinal"
-input ENUM_TIMEFRAMES      InpTimeframe     = PERIOD_M5;          // Tempo gráfico do sinal
-input ENUM_REF_FECHAMENTO  InpRefFechamento = REF_MAXIMA_MINIMA;  // Referência do fechamento
-input ENUM_FORCA           InpForca         = FORCA_CORPO_OU_PONTA; // Força do candle sinal
-input double               InpCorpoMinPct   = 50.0;               // Corpo maior que X% do candle (50 = corpo > pavios)
-input double               InpPontaPct      = 33.0;               // Fechou na ponta: no máximo X% do candle entre o fechamento e a máx (compra) / mín (venda)
-input double               InpTamanhoMax    = 1000;               // Tamanho máximo do candle sinal (pontos)
-input double               InpTamanhoMin    = 0;                  // Tamanho mínimo do candle sinal (pontos, 0 = sem filtro)
+#endif
+PARAM ENUM_TIMEFRAMES      InpTimeframe     = PERIOD_M5;          // Tempo gráfico do sinal
+PARAM ENUM_REF_FECHAMENTO  InpRefFechamento = REF_MAXIMA_MINIMA;  // Referência do fechamento
+PARAM ENUM_FORCA           InpForca         = FORCA_CORPO_OU_PONTA; // Força do candle sinal
+PARAM double               InpCorpoMinPct   = 50.0;               // Corpo maior que X% do candle (50 = corpo > pavios)
+PARAM double               InpPontaPct      = 33.0;               // Fechou na ponta: no máximo X% do candle entre o fechamento e a máx (compra) / mín (venda)
+PARAM double               InpTamanhoMax    = 1000;               // Tamanho máximo do candle sinal (pontos)
+PARAM double               InpTamanhoMin    = 0;                  // Tamanho mínimo do candle sinal (pontos, 0 = sem filtro)
 
+#ifndef VERSAO_ALUNO
 input group "Entrada"
-input ENUM_MODO_ENTRADA    InpModoEntrada   = ENTRADA_RETORNO;    // Modo de entrada
-input double               InpRecuo         = 10.0;               // Modo retorno: recuo mínimo antes de entrar
-input ENUM_UNIDADE_RECUO   InpUnidadeRecuo  = RECUO_PCT_CANDLE;   // Modo retorno: unidade do recuo
-input bool                 InpEntrarNoRecuo = false;              // Modo retorno: entrar limitado no ponto do recuo (sem esperar voltar)
+#endif
+PARAM ENUM_MODO_ENTRADA    InpModoEntrada   = ENTRADA_RETORNO;    // Modo de entrada
+PARAM double               InpRecuo         = 10.0;               // Modo retorno: recuo mínimo antes de entrar
+PARAM ENUM_UNIDADE_RECUO   InpUnidadeRecuo  = RECUO_PCT_CANDLE;   // Modo retorno: unidade do recuo
+PARAM bool                 InpEntrarNoRecuo = false;              // Modo retorno: entrar limitado no ponto do recuo (sem esperar voltar)
 
+#ifndef VERSAO_ALUNO
 input group "Tendência (topos e fundos)"
-input ENUM_FILTRO_TENDENCIA InpFiltroTendencia = TEND_DESLIGADO;  // Filtro de tendência
-input string               InpHorarioTendencia = "13:00";         // A partir de quando exige tendência (modo "depois do horário")
-input int                  InpPivotForca    = 2;                  // Candles de cada lado para confirmar topo/fundo
-input int                  InpTendJanela    = 60;                 // Candles analisados para achar topos e fundos
+#endif
+PARAM ENUM_FILTRO_TENDENCIA InpFiltroTendencia = TEND_DESLIGADO;  // Filtro de tendência
+PARAM string               InpHorarioTendencia = "13:00";         // A partir de quando exige tendência (modo "depois do horário")
+PARAM int                  InpPivotForca    = 2;                  // Candles de cada lado para confirmar topo/fundo
+PARAM int                  InpTendJanela    = 60;                 // Candles analisados para achar topos e fundos
 
+#ifndef VERSAO_ALUNO
 input group "Stop e alvos"
-input int                  InpStopFolgaTicks  = 1;                // Stop: ticks além da mín/máx do candle sinal
-input double               InpParcialPts      = 60;               // Parcial (pontos, 0 = sem parcial)
-input double               InpParcialPct      = 50;               // Tamanho da parcial (% da posição)
-input bool                 InpZeroAposParcial = true;             // Stop no 0x0 ao bater a parcial
-input double               InpAlvoPts         = 80;               // Alvo final (pontos)
-input bool                 InpAlvoLimitado    = true;             // Alvo final como ordem limitada no livro (sai no preço do alvo)
+#endif
+PARAM int                  InpStopFolgaTicks  = 1;                // Stop: ticks além da mín/máx do candle sinal
+PARAM double               InpParcialPts      = 60;               // Parcial (pontos, 0 = sem parcial)
+PARAM double               InpParcialPct      = 50;               // Tamanho da parcial (% da posição)
+PARAM bool                 InpZeroAposParcial = true;             // Stop no 0x0 ao bater a parcial
+PARAM double               InpAlvoPts         = 80;               // Alvo final (pontos)
+PARAM bool                 InpAlvoLimitado    = true;             // Alvo final como ordem limitada no livro (sai no preço do alvo)
 
+#ifndef VERSAO_ALUNO
 input group "Horários"
-input string               InpInicio        = "09:15";            // Início das entradas
-input int                  InpUltimaEntrada = 1300;               // Última entrada (HHMM, ex.: 1300 = 13:00; otimizável)
-input string               InpZerar         = "17:30";            // Zera posição
-input bool                 InpBloquearHorarios = false;           // Não entrar nos horários abaixo
-input string               InpHorariosBloq  = "09:30,10:00,10:30,11:00,11:30"; // Horários sem entrada
-input int                  InpMargemBloqMin = 5;                  // Minutos antes/depois de cada horário bloqueado
+#endif
+PARAM string               InpInicio        = "09:15";            // Início das entradas
+PARAM int                  InpUltimaEntrada = 1300;               // Última entrada (HHMM, ex.: 1300 = 13:00; otimizável)
+PARAM string               InpZerar         = "17:30";            // Zera posição
+PARAM bool                 InpBloquearHorarios = false;           // Não entrar nos horários abaixo
+PARAM string               InpHorariosBloq  = "09:30,10:00,10:30,11:00,11:30"; // Horários sem entrada
+PARAM int                  InpMargemBloqMin = 5;                  // Minutos antes/depois de cada horário bloqueado
 
+#ifndef VERSAO_ALUNO
 input group "Gestão diária"
+#endif
 input double               InpContratos     = 2;                  // Contratos por entrada
-input double               InpMetaDiaPts    = 1500;               // Meta do dia (pontos, 0 = sem meta)
-input double               InpLossDiaPts    = 500;                // Loss máximo do dia (pontos, 0 = sem limite)
-input int                  InpMaxOperacoes  = 0;                  // Máximo de operações no dia (0 = sem limite)
-input int                  InpMaxStopsDia   = 2;                  // Para no dia depois de N stops (perda > 30 pts; 0 = sem limite)
-input ulong                InpMagic         = 2026100;            // Número mágico
-input bool                 InpRegistrarDecisoes = false;          // Escrever no Diário o motivo de cada candle
-input bool                 InpGravarCSV     = false;              // Gravar as operações em CSV (pasta Common/Files)
+PARAM double               InpMetaDiaPts    = 1500;               // Meta do dia (pontos, 0 = sem meta)
+PARAM double               InpLossDiaPts    = 500;                // Loss máximo do dia (pontos, 0 = sem limite)
+PARAM int                  InpMaxOperacoes  = 0;                  // Máximo de operações no dia (0 = sem limite)
+PARAM int                  InpMaxStopsDia   = 2;                  // Para no dia depois de N stops (perda > 30 pts; 0 = sem limite)
+PARAM ulong                InpMagic         = 2026100;            // Número mágico
+PARAM bool                 InpRegistrarDecisoes = false;          // Escrever no Diário o motivo de cada candle
+PARAM bool                 InpGravarCSV     = false;              // Gravar as operações em CSV (pasta Common/Files)
 
+#ifndef VERSAO_ALUNO
 input group "Reentrada"
-input int                  InpMaxReentradas = 0;                  // Reentradas por sinal depois de sair no 0x0 (0 = desligado)
-input int                  InpReentradaMin  = 5;                  // Minutos para o preço voltar à entrada
+#endif
+PARAM int                  InpMaxReentradas = 0;                  // Reentradas por sinal depois de sair no 0x0 (0 = desligado)
+PARAM int                  InpReentradaMin  = 5;                  // Minutos para o preço voltar à entrada
 
 CTrade   trade;
 double   g_contratos     = 0;     // contratos por entrada, já limitados pela licença
@@ -181,12 +216,12 @@ int OnInit()
      {
       if(!LerChave(InpChave))
         {
-         Alert("CohenScalper: chave de licença inválida. Confira a chave em Parâmetros > Licença ou fale com o suporte da Trader Nation.");
+         Alert(NOME_ROBO + ": chave de licença inválida. Confira a chave em Parâmetros > Licença ou fale com o suporte da Trader Nation.");
          return INIT_FAILED;
         }
       if(AccountInfoInteger(ACCOUNT_LOGIN) != g_licConta)
         {
-         Alert(StringFormat("CohenScalper: a chave é da conta %I64d e esta é a conta %I64d. Fale com o suporte da Trader Nation.",
+         Alert(NOME_ROBO + StringFormat(": a chave é da conta %I64d e esta é a conta %I64d. Fale com o suporte da Trader Nation.",
                             g_licConta, AccountInfoInteger(ACCOUNT_LOGIN)));
          return INIT_FAILED;
         }
@@ -196,7 +231,7 @@ int OnInit()
          g_contratos = g_licMax;
         }
       if(LicencaVencida())
-         Alert(StringFormat("CohenScalper: licença vencida em %s. O robô só termina de cuidar da posição aberta e não abre novas operações.",
+         Alert(NOME_ROBO + StringFormat(": licença vencida em %s. O robô só termina de cuidar da posição aberta e não abre novas operações.",
                             TimeToString(g_licValidade, TIME_DATE)));
       else
          PrintFormat("Licença da conta %I64d válida até %s, até %d contratos.",
@@ -279,7 +314,7 @@ int OnInit()
      }
 
    AbrirArquivo();
-   Print("CohenScalper v1.37 carregado");
+   Print(NOME_ROBO + " v1.37 carregado");
    return INIT_SUCCEEDED;
   }
 
@@ -288,7 +323,7 @@ void OnDeinit(const int reason)
   {
    if(g_arquivo != INVALID_HANDLE)
       FileClose(g_arquivo);
-   if(g_totalOps == 0)
+   if(g_totalOps == 0 || !DETALHES)
       return;
 
    double fator = (g_ptsPerdas < 0) ? g_ptsGanhos / -g_ptsPerdas : 0;
@@ -458,9 +493,9 @@ void MonitorarReentrada(int minutoAgora)
                           direcao > 0 ? "compra" : "venda", g_rePreco, g_reRestantes));
    double volume = AjustarVolume(g_contratos);
    if(direcao > 0)
-      trade.Buy(volume, _Symbol, 0, 0, 0, "reentrada");
+      trade.Buy(volume, _Symbol, 0, 0, 0, COMENT("reentrada"));
    else
-      trade.Sell(volume, _Symbol, 0, 0, 0, "reentrada");
+      trade.Sell(volume, _Symbol, 0, 0, 0, COMENT("reentrada"));
    GerenciarPosicao(minutoAgora);
   }
 
@@ -724,9 +759,9 @@ void Entrar(int direcao)
       GuardarStop();
       g_precoReferencia = preco;
       if(direcao > 0)
-         trade.Buy(vol, _Symbol, 0, 0, 0, "abertura");
+         trade.Buy(vol, _Symbol, 0, 0, 0, COMENT("abertura"));
       else
-         trade.Sell(vol, _Symbol, 0, 0, 0, "abertura");
+         trade.Sell(vol, _Symbol, 0, 0, 0, COMENT("abertura"));
       return;
      }
 
@@ -774,16 +809,16 @@ void Entrar(int direcao)
       if(direcao > 0)
         {
          if(ask <= limite)
-            trade.Buy(volume, _Symbol, 0, 0, 0, "recuo");
+            trade.Buy(volume, _Symbol, 0, 0, 0, COMENT("recuo"));
          else
-            trade.BuyLimit(volume, limite, _Symbol, 0, 0, TipoValidade(), 0, "recuo");
+            trade.BuyLimit(volume, limite, _Symbol, 0, 0, TipoValidade(), 0, COMENT("recuo"));
         }
       else
         {
          if(bid >= limite)
-            trade.Sell(volume, _Symbol, 0, 0, 0, "recuo");
+            trade.Sell(volume, _Symbol, 0, 0, 0, COMENT("recuo"));
          else
-            trade.SellLimit(volume, limite, _Symbol, 0, 0, TipoValidade(), 0, "recuo");
+            trade.SellLimit(volume, limite, _Symbol, 0, 0, TipoValidade(), 0, COMENT("recuo"));
         }
       return;
      }
@@ -847,9 +882,9 @@ void MonitorarRetorno()
          g_retornoNoRobo = false;
          double vol = AjustarVolume(g_contratos);
          if(g_retornoDir > 0)
-            trade.Buy(vol, _Symbol, 0, 0, 0, "retorno");
+            trade.Buy(vol, _Symbol, 0, 0, 0, COMENT("retorno"));
          else
-            trade.Sell(vol, _Symbol, 0, 0, 0, "retorno");
+            trade.Sell(vol, _Symbol, 0, 0, 0, COMENT("retorno"));
         }
       return;   // ordem stop já está na abertura
      }
@@ -875,19 +910,19 @@ void MonitorarRetorno()
    if((ultimo - g_retornoPreco) * g_retornoDir >= 0)
      {
       if(g_retornoDir > 0)
-         trade.Buy(volume, _Symbol, 0, 0, 0, "retorno");
+         trade.Buy(volume, _Symbol, 0, 0, 0, COMENT("retorno"));
       else
-         trade.Sell(volume, _Symbol, 0, 0, 0, "retorno");
+         trade.Sell(volume, _Symbol, 0, 0, 0, COMENT("retorno"));
       return;
      }
    bool ok = (g_retornoDir > 0)
-             ? trade.BuyStop(volume, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, "retorno")
-             : trade.SellStop(volume, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, "retorno");
+             ? trade.BuyStop(volume, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, COMENT("retorno"))
+             : trade.SellStop(volume, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, COMENT("retorno"));
    uint rc = trade.ResultRetcode();
    if(!ok || (rc != TRADE_RETCODE_DONE && rc != TRADE_RETCODE_PLACED))
      {
       g_retornoNoRobo = true;
-      PrintFormat("Ordem stop na abertura recusada (código %u): o robô entra quando o último negócio voltar a %.0f",
+      if(DETALHES) PrintFormat("Ordem stop na abertura recusada (código %u): o robô entra quando o último negócio voltar a %.0f",
                   rc, g_retornoPreco);
      }
   }
@@ -1049,7 +1084,7 @@ void GerenciarPosicao(int minutoAgora)
         {
          if(volume < volCheio)
            {
-            PrintFormat("Parcial executada pela ordem limitada: posição de %.0f para %.0f contratos", volCheio, volume);
+            if(DETALHES) PrintFormat("Parcial executada pela ordem limitada: posição de %.0f para %.0f contratos", volCheio, volume);
             CancelarParcial();   // o que sobrou da ordem, se ela executou só em parte
             g_parcialFeita = true;
            }
@@ -1065,7 +1100,7 @@ void GerenciarPosicao(int minutoAgora)
                g_tParcial        = TimeCurrent();
               }
             else
-               Print("Ordem limitada da parcial não está mais no servidor. O robô assume a parcial.");
+               if(DETALHES) Print("Ordem limitada da parcial não está mais no servidor. O robô assume a parcial.");
             g_ticketParcial = 0;
            }
         }
@@ -1075,16 +1110,16 @@ void GerenciarPosicao(int minutoAgora)
          double precoPar = ArredondarPreco(preco + dir * InpParcialPts);
          if(volParc > 0 && volParc < volume && (precoPar - bid) * dir > 0)
            {
-            bool ok = (dir > 0) ? trade.SellLimit(volParc, precoPar, _Symbol, 0, 0, TipoValidade(), 0, "parcial")
-                                : trade.BuyLimit(volParc, precoPar, _Symbol, 0, 0, TipoValidade(), 0, "parcial");
+            bool ok = (dir > 0) ? trade.SellLimit(volParc, precoPar, _Symbol, 0, 0, TipoValidade(), 0, COMENT("parcial"))
+                                : trade.BuyLimit(volParc, precoPar, _Symbol, 0, 0, TipoValidade(), 0, COMENT("parcial"));
             uint rc = trade.ResultRetcode();
             if(ok && (rc == TRADE_RETCODE_DONE || rc == TRADE_RETCODE_PLACED) && trade.ResultOrder() > 0)
               {
                g_ticketParcial = trade.ResultOrder();
-               PrintFormat("Parcial limitada: %s %.0f a %.0f", dir > 0 ? "venda" : "compra", volParc, precoPar);
+               if(DETALHES) PrintFormat("Parcial limitada: %s %.0f a %.0f", dir > 0 ? "venda" : "compra", volParc, precoPar);
               }
             else if(++g_falhasParcial >= 3)
-               PrintFormat("Ordem limitada da parcial recusada (código %u). O robô faz a parcial a mercado.", rc);
+               if(DETALHES) PrintFormat("Ordem limitada da parcial recusada (código %u). O robô faz a parcial a mercado.", rc);
            }
         }
      }
@@ -1102,17 +1137,17 @@ void GerenciarPosicao(int minutoAgora)
          double volAlvo = AjustarVolume(volume - volParc);
          if(volAlvo > 0 && (alvo - bid) * dir > 0)
            {
-            bool ok = (dir > 0) ? trade.SellLimit(volAlvo, alvo, _Symbol, 0, 0, TipoValidade(), 0, "alvo")
-                                : trade.BuyLimit(volAlvo, alvo, _Symbol, 0, 0, TipoValidade(), 0, "alvo");
+            bool ok = (dir > 0) ? trade.SellLimit(volAlvo, alvo, _Symbol, 0, 0, TipoValidade(), 0, COMENT("alvo"))
+                                : trade.BuyLimit(volAlvo, alvo, _Symbol, 0, 0, TipoValidade(), 0, COMENT("alvo"));
             uint rc = trade.ResultRetcode();
             if(ok && (rc == TRADE_RETCODE_DONE || rc == TRADE_RETCODE_PLACED) && trade.ResultOrder() > 0)
               {
                g_ticketAlvo   = trade.ResultOrder();
                g_alvoColocado = true;
-               PrintFormat("Alvo limitado: %s %.0f a %.0f", dir > 0 ? "venda" : "compra", volAlvo, alvo);
+               if(DETALHES) PrintFormat("Alvo limitado: %s %.0f a %.0f", dir > 0 ? "venda" : "compra", volAlvo, alvo);
               }
             else if(++g_falhasAlvo >= 3)
-               PrintFormat("Ordem limitada do alvo recusada (código %u). O alvo vai para o servidor.", rc);
+               if(DETALHES) PrintFormat("Ordem limitada do alvo recusada (código %u). O alvo vai para o servidor.", rc);
            }
         }
      }
@@ -1125,13 +1160,13 @@ void GerenciarPosicao(int minutoAgora)
         {
          if(TimeCurrent() - g_tParcial < 10)
             return;
-         PrintFormat("Parcial enviada às %s não apareceu na posição. Tentando de novo.",
+         if(DETALHES) PrintFormat("Parcial enviada às %s não apareceu na posição. Tentando de novo.",
                      TimeToString(g_tParcial, TIME_SECONDS));
          g_parcialFeita = false;
          g_volAntesParcial = 0;
          return;
         }
-      PrintFormat("Parcial executada: posição de %.0f para %.0f contratos", g_volAntesParcial, volume);
+      if(DETALHES) PrintFormat("Parcial executada: posição de %.0f para %.0f contratos", g_volAntesParcial, volume);
       g_volAntesParcial = 0;
      }
 
@@ -1148,7 +1183,7 @@ void GerenciarPosicao(int minutoAgora)
          bool podeModificar = (bid - stopDepois) * dir > 0 && (!alvoNoServ || (alvo - bid) * dir > 0);
          if(podeModificar && trade.PositionModify(ticket, stopDepois, alvoNoServ ? alvo : tp) &&
             trade.ResultRetcode() == TRADE_RETCODE_DONE)
-            PrintFormat("Depois da parcial: stop %.0f, alvo %.0f", stopDepois, alvo);
+            if(DETALHES) PrintFormat("Depois da parcial: stop %.0f, alvo %.0f", stopDepois, alvo);
          // Níveis que o servidor ainda não tem: o robô executa sem esperar.
          if(faltaStop && (bid - stopDepois) * dir <= 0)
            {
@@ -1204,7 +1239,7 @@ void GerenciarPosicao(int minutoAgora)
         {
          g_motivoSaida = alemAlvo ? "alvo" : (MathAbs(sl - preco) < g_tick / 2 ? "0x0" : "stop");
          if(!testador || InpRegistrarDecisoes)
-            PrintFormat("Saída pelo robô: %s, preço %.0f, stop %.0f, alvo %.0f",
+            if(DETALHES) PrintFormat("Saída pelo robô: %s, preço %.0f, stop %.0f, alvo %.0f",
                         g_motivoSaida, precoSaida, sl, tp);
          trade.PositionClose(ticket);
         }
@@ -1224,7 +1259,7 @@ void GerenciarPosicao(int minutoAgora)
       g_parcialFeita = true;   // posição já reduzida (robô reiniciado): segue como depois da parcial
       return;
      }
-   PrintFormat("Parcial: %s %.0f a mercado (último %.0f, entrada %.0f)",
+   if(DETALHES) PrintFormat("Parcial: %s %.0f a mercado (último %.0f, entrada %.0f)",
                dir > 0 ? "vendendo" : "comprando", volParcial, bid, preco);
    if(!FecharParcial(ticket, tipo, volParcial))
       return;   // tenta de novo no próximo tick
@@ -1240,8 +1275,8 @@ bool FecharParcial(ulong ticket, long tipo, double vol)
       return trade.PositionClosePartial(ticket, vol);
    // Netting (B3): a ordem contrária reduz a posição.
    if(tipo == POSITION_TYPE_BUY)
-      return trade.Sell(vol, _Symbol, 0, 0, 0, "parcial");
-   return trade.Buy(vol, _Symbol, 0, 0, 0, "parcial");
+      return trade.Sell(vol, _Symbol, 0, 0, 0, COMENT("parcial"));
+   return trade.Buy(vol, _Symbol, 0, 0, 0, COMENT("parcial"));
   }
 
 //+------------------------------------------------------------------+
@@ -1596,7 +1631,7 @@ void MedirExecucao(long id)
       g_execLonge++;
       g_desvioLonge += pts;
       if(g_execLonge <= 10)
-         PrintFormat("Execução longe da ordem: %s %s ordem %.0f executou %.0f (%.0f pts %s)",
+         if(DETALHES) PrintFormat("Execução longe da ordem: %s %s ordem %.0f executou %.0f (%.0f pts %s)",
                      TimeToString(tempos[i], TIME_DATE | TIME_SECONDS), lados[i] > 0 ? "compra" : "venda",
                      precoOrdem, precos[i], MathAbs(desvio), desvio > 0 ? "contra" : "a favor");
      }
