@@ -1,5 +1,5 @@
-CohenScalper - Trader Nation
-============================
+CohenScalperV1.0 - Trader Nation
+================================
 
 INSTALAR
 1. Descompacte esta pasta inteira (botao direito no .zip > Extrair tudo).
@@ -10,17 +10,17 @@ INSTALAR
    - Navegador > Consultor Expert > botao direito > Atualizar
    - Abra o grafico do mini indice do VENCIMENTO ATUAL (ex.: WINZ26),
      tempo M5. Nao use WIN$ nem WIN$N: eles sao so para historico.
-   - Arraste o CohenScalper para esse grafico
+   - Arraste o CohenScalperV1.0 para esse grafico
    - Aba Parametros: cole a sua chave no campo "Chave de licenca".
      Nao mude os outros parametros.
    - Aba Comum: marque "Permitir Algotrading" e clique OK
    - Deixe o botao "Algotrading" verde na barra de cima
 4. Confira na aba Experts (embaixo):
-   "CohenScalper v... carregado" e "Licenca da conta ... valida ate ..."
+   "CohenScalperV1.0 carregado" e "Licenca da conta ... valida ate ..."
 
 NO MAC (sem o instalador .bat, que e so para Windows)
 1. No MetaTrader 5: Arquivo > Abrir pasta de dados.
-2. No Finder que abrir, entre em MQL5 > Experts e copie o CohenScalper.ex5
+2. No Finder que abrir, entre em MQL5 > Experts e copie o CohenScalperV1.0.ex5
    para dentro dela.
 3. Volte ao MetaTrader e siga a partir do passo 3 acima (Navegador > Atualizar).
 O Mac nao pode dormir no horario do pregao: desligue o repouso ou use a VPS
@@ -39,6 +39,7 @@ FUNCIONAMENTO
 - O resultado simulado considera corretagem zero no mini indice.
   Confira a tarifa da sua corretora antes de operar.
 
-Conta demo funciona sem chave: teste a vontade antes da conta real.
+A chave vale para uma conta (real ou demo). Para testar numa conta demo,
+peca ao suporte uma chave de teste com o numero dessa conta.
 Resultados passados, inclusive simulados, nao garantem resultados futuros.
 Duvidas: suporte da Trader Nation.

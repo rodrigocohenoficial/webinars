@@ -1,13 +1,13 @@
 @echo off
 setlocal enabledelayedexpansion
-title Instalador CohenScalper - Trader Nation
+title Instalador CohenScalperV1.0 - Trader Nation
 echo.
-echo  Instalador do robo CohenScalper - Trader Nation
+echo  Instalador do robo CohenScalperV1.0 - Trader Nation
 echo  ------------------------------------------------
 echo.
-set "ARQ=%~dp0CohenScalper.ex5"
+set "ARQ=%~dp0CohenScalperV1.0.ex5"
 if not exist "%ARQ%" (
-  echo  Nao encontrei o CohenScalper.ex5 nesta pasta.
+  echo  Nao encontrei o CohenScalperV1.0.ex5 nesta pasta.
   echo  Descompacte o arquivo .zip inteiro antes de rodar o instalador.
   echo.
   pause
@@ -37,7 +37,7 @@ echo  Pronto! Robo instalado em !N! MetaTrader 5.
 echo.
 echo  Proximos passos no MetaTrader 5:
 echo   1. Navegador - Consultor Expert - botao direito - Atualizar
-echo   2. Arraste o CohenScalper para o grafico do mini indice WIN, tempo M5
+echo   2. Arraste o CohenScalperV1.0 para o grafico do mini indice WIN, tempo M5
 echo   3. Aba Parametros: cole sua chave de licenca no primeiro campo
 echo   4. Aba Comum: marque Permitir Algotrading - OK
 echo   5. Botao Algotrading verde na barra de cima

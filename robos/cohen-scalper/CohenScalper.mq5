@@ -69,7 +69,11 @@ enum ENUM_FILTRO_TENDENCIA
 #ifndef VERSAO_ALUNO
 input group "Licença"
 #endif
+#ifdef VERSAO_ALUNO
+input string               InpChave         = "";                 // Chave de licença
+#else
 input string               InpChave         = "";                 // Chave de licença (só conta real; demo e testador são livres)
+#endif
 
 #ifndef VERSAO_ALUNO
 input group "Sinal"
@@ -212,11 +216,25 @@ int      g_falhasAlvo    = 0;          // recusas da ordem limitada do alvo nest
 int OnInit()
   {
    g_contratos = InpContratos;
+#ifdef VERSAO_ALUNO
+   // Versão do aluno: nada de testador (os trades mostrariam a regra) e só no
+   // contrato vigente do mini índice.
+   if(MQLInfoInteger(MQL_TESTER) || MQLInfoInteger(MQL_OPTIMIZATION))
+     {
+      Print(NOME_ROBO + " não roda no testador de estratégia.");
+      return INIT_FAILED;
+     }
+   if(StringFind(_Symbol, "WIN") != 0 || StringFind(_Symbol, "$") >= 0)
+     {
+      Alert(NOME_ROBO + ": use o gráfico do mini índice do vencimento atual (ex.: WINZ26), tempo M5.");
+      return INIT_FAILED;
+     }
+#endif
    if(LicencaAplica())
      {
       if(!LerChave(InpChave))
         {
-         Alert(NOME_ROBO + ": chave de licença inválida. Confira a chave em Parâmetros > Licença ou fale com o suporte da Trader Nation.");
+         Alert(NOME_ROBO + ": chave de licença inválida. Confira a chave em Parâmetros ou fale com o suporte da Trader Nation.");
          return INIT_FAILED;
         }
       if(AccountInfoInteger(ACCOUNT_LOGIN) != g_licConta)
@@ -314,7 +332,11 @@ int OnInit()
      }
 
    AbrirArquivo();
+#ifdef VERSAO_ALUNO
+   Print(NOME_ROBO + " carregado (versão interna 1.37)");
+#else
    Print(NOME_ROBO + " v1.37 carregado");
+#endif
    return INIT_SUCCEEDED;
   }
 
@@ -1436,12 +1458,17 @@ void RegistrarOperacao(long id)
 //+------------------------------------------------------------------+
 //| Licença                                                          |
 //+------------------------------------------------------------------+
-// A trava vale só em conta real; demo e testador ficam livres.
+// A trava vale em conta real; na versão do aluno, também em conta demo (senão o
+// .ex5 rodaria em qualquer demo e bastaria copiar as ordens). Testador livre.
 bool LicencaAplica()
   {
    if(MQLInfoInteger(MQL_TESTER) || MQLInfoInteger(MQL_OPTIMIZATION))
       return false;
+#ifdef VERSAO_ALUNO
+   return true;
+#else
    return AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_REAL;
+#endif
   }
 
 // Vence no fim do último dia, pelo horário do servidor (não pelo relógio do PC).
