@@ -25,13 +25,24 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.37"
+#property version   "1.38"
 
 #include <Trade\Trade.mqh>
 
 // Segredo das chaves de licença (LIC_SEGREDO). Fica fora do git: copie o
 // CohenLicenca.mqh recebido para a mesma pasta deste arquivo antes de compilar.
 #include "CohenLicenca.mqh"
+
+#ifdef VERSAO_ALUNO
+// Licença online: o robô pergunta ao painel (robos-cohen.vercel.app), pelo
+// número da conta, se pode abrir operação e com quantos contratos. A chave
+// offline continua valendo quando o painel não tem licença para a conta. O
+// segredo fica no CohenLicencaSegredo.mqh, fora do git.
+#define LIC_URL    "https://robos-cohen.vercel.app"
+#define LIC_ROBO   "CohenScalper"
+#define LIC_VERSAO "1.1"
+#include "CohenLicencaOnline.mqh"
+#endif
 
 enum ENUM_FORCA
   {
@@ -230,6 +241,19 @@ int OnInit()
       return INIT_FAILED;
      }
 #endif
+#ifdef VERSAO_ALUNO
+   // Sem licença o robô não sai do gráfico: fica parado, mostrando o motivo no
+   // canto do gráfico, e confere a licença online a cada 2 minutos.
+   int ctChave;
+   if(ChaveOffline(ctChave))
+      PrintFormat("Chave da conta %I64d válida até %s, até %d contratos.",
+                  g_licConta, TimeToString(g_licValidade, TIME_DATE), g_licMax);
+   else if(StringLen(InpChave) > 0)
+      Print(NOME_ROBO + ": a chave informada não vale para esta conta (inválida, de outra conta ou vencida).");
+   LicOnline_Init();
+   EventSetTimer(60);
+   MostrarLicenca();
+#else
    if(LicencaAplica())
      {
       if(!LerChave(InpChave))
@@ -264,6 +288,8 @@ int OnInit()
       else
          Print("Conta demo: a chave informada é inválida (na demo ela não é exigida).");
      }
+
+#endif
 
    g_tick = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
    if(g_tick <= 0)
@@ -333,9 +359,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.37)");
+   Print(NOME_ROBO + " carregado (versão interna 1.38)");
 #else
-   Print(NOME_ROBO + " v1.37 carregado");
+   Print(NOME_ROBO + " v1.38 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -343,6 +369,10 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
   {
+#ifdef VERSAO_ALUNO
+   EventKillTimer();
+   Comment("");
+#endif
    if(g_arquivo != INVALID_HANDLE)
       FileClose(g_arquivo);
    if(g_totalOps == 0 || !DETALHES)
@@ -1549,15 +1579,71 @@ string HmacSha256Hex(const string segredo, const string msg)
    return hex;
   }
 
+// Chamada só antes de abrir operação nova (sem posição): a licença nunca fecha
+// nem abandona posição aberta. Na versão do aluno também define os contratos.
 bool LicencaPermiteEntrada()
   {
+#ifdef VERSAO_ALUNO
+   int ctChave, ct;
+   string motivo;
+   if(!LicOnline_PodeOperar(ChaveOffline(ctChave), ctChave, ct, motivo))
+     {
+      MostrarLicenca();
+      return false;
+     }
+   int permitido = (int)MathMin(InpContratos, ct);
+   permitido -= permitido % 2;   // a parcial é metade da posição: contratos pares
+   if(permitido < 2)
+     {
+      if(!g_avisouLicenca)
+         Print(NOME_ROBO + ": a licença permite 1 contrato; o robô opera com 2 ou mais, em número par.");
+      g_avisouLicenca = true;
+      return false;
+     }
+   g_contratos = permitido;
+   return true;
+#else
    if(!LicencaAplica() || !LicencaVencida())
       return true;
    if(!g_avisouLicenca)
       PrintFormat("Licença vencida em %s: nenhuma operação nova.", TimeToString(g_licValidade, TIME_DATE));
    g_avisouLicenca = true;
    return false;
+#endif
   }
+
+#ifdef VERSAO_ALUNO
+// Chave offline válida para esta conta e no prazo. Conferida a cada uso porque,
+// logo que o MT5 abre, a conta ainda pode não estar conectada.
+bool ChaveOffline(int &contratos)
+  {
+   contratos = 0;
+   if(!LerChave(InpChave) || AccountInfoInteger(ACCOUNT_LOGIN) != g_licConta || LicencaVencida())
+      return false;
+   contratos = g_licMax;
+   return true;
+  }
+
+// Situação da licença no canto do gráfico.
+void MostrarLicenca()
+  {
+   int ctChave, ct;
+   string motivo;
+   bool pode = LicOnline_PodeOperar(ChaveOffline(ctChave), ctChave, ct, motivo);
+   string txt = NOME_ROBO + "\nLicença: " +
+                (pode ? StringFormat("liberado, até %d contratos (%s)", ct, motivo) : "parado (" + motivo + ")");
+   string aviso = LicOnline_Aviso();
+   if(aviso != "")
+      txt += "\n" + aviso;
+   Comment(txt);
+  }
+
+void OnTimer()
+  {
+   LicOnline_Timer();
+   MostrarLicenca();
+  }
+#endif
 
 //+------------------------------------------------------------------+
 //| Preço de referência                                              |
