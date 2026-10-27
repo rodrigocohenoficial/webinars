@@ -16,7 +16,7 @@ INSTALAR
    - Aba Comum: marque "Permitir Algotrading" e clique OK
    - Libere a licenca online (uma vez so): Ferramentas > Opcoes > Experts >
      marque "Permitir WebRequest para as URLs listadas" e adicione
-     https://robos-cohen.vercel.app
+     https://robos.tradernation.com.br
    - Deixe o botao "Algotrading" verde na barra de cima
 4. Confira na aba Experts (embaixo):
    "CohenScalperV1.0 carregado" e, no canto do grafico, "Licenca: liberado"

@@ -41,7 +41,7 @@ echo   2. Arraste o CohenScalperV1.0 para o grafico do mini indice WIN, tempo M5
 echo   3. Aba Parametros: cole sua chave, se tiver, e informe os contratos
 echo   4. Aba Comum: marque Permitir Algotrading - OK
 echo   5. Ferramentas - Opcoes - Experts: marque Permitir WebRequest e adicione
-echo      https://robos-cohen.vercel.app
+echo      https://robos.tradernation.com.br
 echo   6. Botao Algotrading verde na barra de cima
 echo.
 pause

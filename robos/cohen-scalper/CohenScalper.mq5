@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.38"
+#property version   "1.39"
 
 #include <Trade\Trade.mqh>
 
@@ -34,11 +34,11 @@
 #include "CohenLicenca.mqh"
 
 #ifdef VERSAO_ALUNO
-// Licença online: o robô pergunta ao painel (robos-cohen.vercel.app), pelo
+// Licença online: o robô pergunta ao painel (robos.tradernation.com.br), pelo
 // número da conta, se pode abrir operação e com quantos contratos. A chave
 // offline continua valendo quando o painel não tem licença para a conta. O
 // segredo fica no CohenLicencaSegredo.mqh, fora do git.
-#define LIC_URL    "https://robos-cohen.vercel.app"
+#define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
 #define LIC_VERSAO "1.1"
 #include "CohenLicencaOnline.mqh"
@@ -359,9 +359,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.38)");
+   Print(NOME_ROBO + " carregado (versão interna 1.39)");
 #else
-   Print(NOME_ROBO + " v1.38 carregado");
+   Print(NOME_ROBO + " v1.39 carregado");
 #endif
    return INIT_SUCCEEDED;
   }

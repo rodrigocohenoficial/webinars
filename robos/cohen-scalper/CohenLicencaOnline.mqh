@@ -18,7 +18,7 @@
 
 //--- Configuracao. Defina antes do #include para trocar.
 #ifndef LIC_URL
-#define LIC_URL "https://robos-cohen.vercel.app"
+#define LIC_URL "https://robos.tradernation.com.br"
 #endif
 #ifndef LIC_ROBO
 #define LIC_ROBO "CohenScalper"     // tem que ser igual ao codigo no painel
