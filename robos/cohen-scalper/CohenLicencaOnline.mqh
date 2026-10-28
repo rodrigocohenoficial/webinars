@@ -284,16 +284,18 @@ bool LicUsarCache()
 //+------------------------------------------------------------------+
 void LicMostrarAvisos(const string &chaves[],const string &valores[])
   {
-   // Mensagem em massa: cada id aparece uma vez por terminal.
+   // Mensagem em massa. O alerta aparece uma vez por terminal (cada id);
+   // o texto fica em LicOnline_Aviso() enquanto estiver no ar, para o robo
+   // mostrar no canto do grafico. Tirou do ar no painel, some do grafico.
    long msgId=StringToInteger(LicCampo(chaves,valores,"msg_id"));
    string msg=LicCampo(chaves,valores,"msg");
+   g_lonAviso=msg;
    string gv="CohenLic_msg_"+LIC_ROBO;
    double visto=GlobalVariableCheck(gv) ? GlobalVariableGet(gv) : 0;
    if(msgId>0 && msg!="" && msgId>(long)visto)
      {
       GlobalVariableSet(gv,(double)msgId);
-      g_lonAviso=msg;
-      Alert("Rodrigo Cohen: ",msg);
+      Alert("Trader Nation: ",msg);
      }
 
    // Atualizacao: uma vez por sessao do MT5.
@@ -303,8 +305,7 @@ void LicMostrarAvisos(const string &chaves[],const string &valores[])
       g_lonUpdMostrada=upd;
       string notas=LicCampo(chaves,valores,"upd_notas");
       string url=LicCampo(chaves,valores,"upd_url");
-      g_lonAviso="Nova versao "+upd+" disponivel. "+notas;
-      Alert("Nova versao ",upd," do ",LIC_ROBO," disponivel. ",notas);
+      Alert("Trader Nation: nova versao ",upd," do ",LIC_ROBO," disponivel. ",notas);
       if(url!="")
          Print("Baixe a versao ",upd," aqui: ",url);
      }

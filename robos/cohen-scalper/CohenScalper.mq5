@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.39"
+#property version   "1.40"
 
 #include <Trade\Trade.mqh>
 
@@ -359,9 +359,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.39)");
+   Print(NOME_ROBO + " carregado (versão interna 1.40)");
 #else
-   Print(NOME_ROBO + " v1.39 carregado");
+   Print(NOME_ROBO + " v1.40 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -1634,8 +1634,32 @@ void MostrarLicenca()
                 (pode ? StringFormat("liberado, até %d contratos (%s)", ct, motivo) : "parado (" + motivo + ")");
    string aviso = LicOnline_Aviso();
    if(aviso != "")
-      txt += "\n" + aviso;
+      txt += "\n" + QuebrarLinhas("Aviso: " + aviso, 60);
    Comment(txt);
+  }
+
+// Quebra o texto em linhas de até "largura" caracteres, nos espaços.
+string QuebrarLinhas(string texto, int largura)
+  {
+   StringReplace(texto, "\n", " ");
+   string palavras[];
+   int n = StringSplit(texto, ' ', palavras);
+   string saida = "", linha = "";
+   for(int i = 0; i < n; i++)
+     {
+      if(palavras[i] == "")
+         continue;
+      if(linha != "" && StringLen(linha) + 1 + StringLen(palavras[i]) > largura)
+        {
+         saida += (saida == "" ? "" : "\n") + linha;
+         linha = palavras[i];
+        }
+      else
+         linha += (linha == "" ? "" : " ") + palavras[i];
+     }
+   if(linha != "")
+      saida += (saida == "" ? "" : "\n") + linha;
+   return saida;
   }
 
 void OnTimer()
