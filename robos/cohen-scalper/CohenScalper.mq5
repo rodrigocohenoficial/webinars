@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.40"
+#property version   "1.41"
 
 #include <Trade\Trade.mqh>
 
@@ -40,7 +40,7 @@
 // segredo fica no CohenLicencaSegredo.mqh, fora do git.
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "1.1"
+#define LIC_VERSAO "1.2"
 #include "CohenLicencaOnline.mqh"
 #endif
 
@@ -253,6 +253,7 @@ int OnInit()
                   g_licConta, TimeToString(g_licValidade, TIME_DATE), g_licMax);
    else if(StringLen(InpChave) > 0)
       Print(NOME_ROBO + ": a chave informada não vale para esta conta (inválida, de outra conta ou vencida).");
+   LicOnline_DefinirMagic((long)InpMagic);   // o painel mostra contratos e entradas do dia
    LicOnline_Init();
    EventSetTimer(60);
    MostrarLicenca();
@@ -362,9 +363,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.40)");
+   Print(NOME_ROBO + " carregado (versão interna 1.41)");
 #else
-   Print(NOME_ROBO + " v1.40 carregado");
+   Print(NOME_ROBO + " v1.41 carregado");
 #endif
    return INIT_SUCCEEDED;
   }

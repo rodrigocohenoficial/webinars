@@ -63,6 +63,7 @@ string          g_lonMotivo      = "verificando licenca...";
 string          g_lonAviso       = "";  // ultima mensagem ou aviso de atualizacao
 bool            g_lonAvisouUrl   = false;
 string          g_lonUpdMostrada = "";
+long            g_lonMagic       = 0;   // numero magico do robo, para contar o movimento do dia
 
 //+------------------------------------------------------------------+
 //| Utilitarios de bytes                                             |
@@ -311,6 +312,38 @@ void LicMostrarAvisos(const string &chaves[],const string &valores[])
      }
   }
 
+//+------------------------------------------------------------------+
+//| Movimento do dia: entradas e contratos deste robo desde 0h       |
+//| (hora do servidor da corretora). Vai junto com a verificacao,    |
+//| para o painel mostrar quanto cada cliente operou.                |
+//+------------------------------------------------------------------+
+void LicMovimentoHoje(int &entradas,long &contratos)
+  {
+   entradas=0;
+   contratos=0;
+   if(g_lonMagic==0)
+      return;
+   MqlDateTime t;
+   TimeToStruct(TimeCurrent(),t);
+   t.hour=0;
+   t.min=0;
+   t.sec=0;
+   if(!HistorySelect(StructToTime(t),TimeCurrent()+60))
+      return;
+   int n=HistoryDealsTotal();
+   for(int i=0;i<n;i++)
+     {
+      ulong tk=HistoryDealGetTicket(i);
+      if(tk==0 || HistoryDealGetInteger(tk,DEAL_MAGIC)!=g_lonMagic)
+         continue;
+      long e=HistoryDealGetInteger(tk,DEAL_ENTRY);
+      if(e!=DEAL_ENTRY_IN && e!=DEAL_ENTRY_INOUT)
+         continue;
+      entradas++;
+      contratos+=(long)MathRound(HistoryDealGetDouble(tk,DEAL_VOLUME));
+     }
+  }
+
 // Sem resposta valida do servidor.
 void LicFalhou(const string motivo)
   {
@@ -349,6 +382,17 @@ void LicVerificar()
                 +"&servidor="+LicUrlEnc(AccountInfoString(ACCOUNT_SERVER))
                 +"&real="+(AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_REAL ? "1" : "0")
                 +"&titular="+LicUrlEnc(AccountInfoString(ACCOUNT_NAME));
+   if(g_lonMagic!=0)
+     {
+      int entradas;
+      long contratos;
+      LicMovimentoHoje(entradas,contratos);
+      MqlDateTime d;
+      TimeToStruct(TimeCurrent(),d);
+      corpo+="&dia="+StringFormat("%04d.%02d.%02d",d.year,d.mon,d.day)
+             +"&entradas="+IntegerToString(entradas)
+             +"&contratos="+IntegerToString(contratos);
+     }
 
    uchar u[];
    LicBytes(corpo,u);
@@ -426,6 +470,10 @@ void LicVerificar()
 //+------------------------------------------------------------------+
 //| API para o robo                                                  |
 //+------------------------------------------------------------------+
+// Opcional, antes do LicOnline_Init: com o numero magico do robo, o painel
+// passa a mostrar quantos contratos e entradas o cliente fez no dia.
+void LicOnline_DefinirMagic(const long magic) { g_lonMagic=magic; }
+
 // Chame no OnInit.
 void LicOnline_Init()
   {
