@@ -81,7 +81,10 @@ enum ENUM_FILTRO_TENDENCIA
 input group "Licença"
 #endif
 #ifdef VERSAO_ALUNO
-input string               InpChave         = "";                 // Chave de licença
+// Na versão do aluno a licença vem só do painel online (por número de conta):
+// sem campo de chave. Uma chave offline não pode ser revogada antes do prazo e
+// passaria por cima de um bloqueio se o aluno cortasse o acesso ao servidor.
+const string               InpChave         = "";
 #else
 input string               InpChave         = "";                 // Chave de licença (só conta real; demo e testador são livres)
 #endif

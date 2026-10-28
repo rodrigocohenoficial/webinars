@@ -2,8 +2,8 @@
 //| Versão do aluno do CohenScalper.                                  |
 //| O nome deste arquivo é o nome que o aluno vê no MetaTrader.       |
 //| Compile ESTE arquivo (F7); o .ex5 gerado é o que vai para o aluno.|
-//| A estratégia fica fixa: só a chave de licença e os contratos são  |
-//| editáveis; a licença vem do painel online (ou da chave offline);  |
+//| A estratégia fica fixa: só os contratos são editáveis; a licença  |
+//| vem só do painel online, pelo número da conta (sem chave);        |
 //| não roda no testador e só aceita o contrato vigente do WIN.       |
 //| Precisa na mesma pasta: CohenScalper.mq5, CohenLicenca.mqh,       |
 //| CohenLicencaOnline.mqh e CohenLicencaSegredo.mqh.                 |

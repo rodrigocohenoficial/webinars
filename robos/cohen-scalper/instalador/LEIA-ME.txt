@@ -11,8 +11,7 @@ INSTALAR
    - Abra o grafico do mini indice do VENCIMENTO ATUAL (ex.: WINZ26),
      tempo M5. Nao use WIN$ nem WIN$N: eles sao so para historico.
    - Arraste o CohenScalperV1.0 para esse grafico
-   - Aba Parametros: se recebeu uma chave, cole no campo "Chave de licenca".
-     Informe os contratos (numero par: 2, 4, 6...).
+   - Aba Parametros: informe os contratos (numero par: 2, 4, 6...).
    - Aba Comum: marque "Permitir Algotrading" e clique OK
    - Libere a licenca online (uma vez so): Ferramentas > Opcoes > Experts >
      marque "Permitir WebRequest para as URLs listadas" e adicione
@@ -32,7 +31,7 @@ da MetaQuotes.
 TODO VENCIMENTO DO MINI INDICE (a cada 2 meses)
 O contrato vence na quarta-feira mais proxima do dia 15 dos meses pares.
 No dia do vencimento, depois do pregao, abra o grafico do novo contrato
-(ex.: WINZ26 > WING27), arraste o robo de novo com a mesma chave e feche
+(ex.: WINZ26 > WING27), arraste o robo de novo e feche
 o grafico antigo. No contrato vencido o robo nao opera.
 
 FUNCIONAMENTO

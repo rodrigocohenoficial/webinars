@@ -38,7 +38,7 @@ echo.
 echo  Proximos passos no MetaTrader 5:
 echo   1. Navegador - Consultor Expert - botao direito - Atualizar
 echo   2. Arraste o CohenScalperV1.0 para o grafico do mini indice WIN, tempo M5
-echo   3. Aba Parametros: cole sua chave, se tiver, e informe os contratos
+echo   3. Aba Parametros: informe os contratos (2, 4, 6...)
 echo   4. Aba Comum: marque Permitir Algotrading - OK
 echo   5. Ferramentas - Opcoes - Experts: marque Permitir WebRequest e adicione
 echo      https://robos.tradernation.com.br
