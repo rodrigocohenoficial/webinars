@@ -382,7 +382,8 @@ void LicVerificar()
                 +"&servidor="+LicUrlEnc(AccountInfoString(ACCOUNT_SERVER))
                 +"&real="+(AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_REAL ? "1" : "0")
                 +"&titular="+LicUrlEnc(AccountInfoString(ACCOUNT_NAME));
-   if(g_lonMagic!=0)
+   // Movimento do dia so de conta real: demo nao entra na contagem do painel.
+   if(g_lonMagic!=0 && AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_REAL)
      {
       int entradas;
       long contratos;
