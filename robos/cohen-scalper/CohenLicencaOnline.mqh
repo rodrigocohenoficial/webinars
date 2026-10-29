@@ -313,14 +313,16 @@ void LicMostrarAvisos(const string &chaves[],const string &valores[])
   }
 
 //+------------------------------------------------------------------+
-//| Movimento do dia: entradas e contratos deste robo desde 0h       |
+//| Movimento do dia: entradas, contratos e resultado deste robo     |
+//| desde 0h                                                         |
 //| (hora do servidor da corretora). Vai junto com a verificacao,    |
 //| para o painel mostrar quanto cada cliente operou.                |
 //+------------------------------------------------------------------+
-void LicMovimentoHoje(int &entradas,long &contratos)
+void LicMovimentoHoje(int &entradas,long &contratos,double &resultado)
   {
    entradas=0;
    contratos=0;
+   resultado=0;
    if(g_lonMagic==0)
       return;
    MqlDateTime t;
@@ -336,6 +338,9 @@ void LicMovimentoHoje(int &entradas,long &contratos)
       ulong tk=HistoryDealGetTicket(i);
       if(tk==0 || HistoryDealGetInteger(tk,DEAL_MAGIC)!=g_lonMagic)
          continue;
+      // Resultado liquido do dia (R$): lucro, corretagem, taxas e swap.
+      resultado+=HistoryDealGetDouble(tk,DEAL_PROFIT)+HistoryDealGetDouble(tk,DEAL_COMMISSION)
+                 +HistoryDealGetDouble(tk,DEAL_SWAP)+HistoryDealGetDouble(tk,DEAL_FEE);
       long e=HistoryDealGetInteger(tk,DEAL_ENTRY);
       if(e!=DEAL_ENTRY_IN && e!=DEAL_ENTRY_INOUT)
          continue;
@@ -381,18 +386,25 @@ void LicVerificar()
                 +"&versao="+LicUrlEnc(LIC_VERSAO)
                 +"&servidor="+LicUrlEnc(AccountInfoString(ACCOUNT_SERVER))
                 +"&real="+(AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_REAL ? "1" : "0")
-                +"&titular="+LicUrlEnc(AccountInfoString(ACCOUNT_NAME));
+                +"&titular="+LicUrlEnc(AccountInfoString(ACCOUNT_NAME))
+                // Saude: Algotrading ligado, MT5 conectado na corretora e
+                // grafico onde o robo esta (o painel avisa contrato vencido).
+                +"&algo="+(TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) && MQLInfoInteger(MQL_TRADE_ALLOWED) ? "1" : "0")
+                +"&corretora="+(TerminalInfoInteger(TERMINAL_CONNECTED) ? "1" : "0")
+                +"&simbolo="+LicUrlEnc(_Symbol);
    // Movimento do dia so de conta real: demo nao entra na contagem do painel.
    if(g_lonMagic!=0 && AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_REAL)
      {
       int entradas;
       long contratos;
-      LicMovimentoHoje(entradas,contratos);
+      double resultado;
+      LicMovimentoHoje(entradas,contratos,resultado);
       MqlDateTime d;
       TimeToStruct(TimeCurrent(),d);
       corpo+="&dia="+StringFormat("%04d.%02d.%02d",d.year,d.mon,d.day)
              +"&entradas="+IntegerToString(entradas)
-             +"&contratos="+IntegerToString(contratos);
+             +"&contratos="+IntegerToString(contratos)
+             +"&resultado="+DoubleToString(resultado,2);
      }
 
    uchar u[];
