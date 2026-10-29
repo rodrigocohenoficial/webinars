@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.41"
+#property version   "1.42"
 
 #include <Trade\Trade.mqh>
 
@@ -258,41 +258,18 @@ int OnInit()
    EventSetTimer(60);
    MostrarLicenca();
 #else
-   if(LicencaAplica())
+   // A licença nunca tira o robô do gráfico: é conferida antes de cada entrada
+   // (LicencaPermiteEntrada). Em 28/10, num reinício da VPS, o robô da conta
+   // demo saiu do gráfico com "chave de licença inválida" logo ao carregar e
+   // ficou fora sem ninguém ver.
+   if(StringLen(InpChave) > 0 && !MQLInfoInteger(MQL_TESTER))
      {
-      if(!LerChave(InpChave))
-        {
-         Alert(NOME_ROBO + ": chave de licença inválida. Confira a chave em Parâmetros ou fale com o suporte da Trader Nation.");
-         return INIT_FAILED;
-        }
-      if(AccountInfoInteger(ACCOUNT_LOGIN) != g_licConta)
-        {
-         Alert(NOME_ROBO + StringFormat(": a chave é da conta %I64d e esta é a conta %I64d. Fale com o suporte da Trader Nation.",
-                            g_licConta, AccountInfoInteger(ACCOUNT_LOGIN)));
-         return INIT_FAILED;
-        }
-      if(g_licMax > 0 && g_contratos > g_licMax)
-        {
-         PrintFormat("Licença permite até %d contratos: operando com %d.", g_licMax, g_licMax);
-         g_contratos = g_licMax;
-        }
-      if(LicencaVencida())
-         Alert(NOME_ROBO + StringFormat(": licença vencida em %s. O robô só termina de cuidar da posição aberta e não abre novas operações.",
-                            TimeToString(g_licValidade, TIME_DATE)));
-      else
-         PrintFormat("Licença da conta %I64d válida até %s, até %d contratos.",
-                     g_licConta, TimeToString(g_licValidade, TIME_DATE), g_licMax);
-     }
-   else if(StringLen(InpChave) > 0 && !MQLInfoInteger(MQL_TESTER))
-     {
-      // Demo: a chave não é exigida, mas é conferida para o cliente testar antes da conta real.
       if(LerChave(InpChave))
-         PrintFormat("Conta demo: chave conferida, válida para a conta real %I64d até %s, até %d contratos.",
+         PrintFormat("Chave da conta %I64d válida até %s, até %d contratos.",
                      g_licConta, TimeToString(g_licValidade, TIME_DATE), g_licMax);
       else
-         Print("Conta demo: a chave informada é inválida (na demo ela não é exigida).");
+         Print(NOME_ROBO + ": a chave informada é inválida (ela só é exigida em conta real).");
      }
-
 #endif
 
    g_tick = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
@@ -363,9 +340,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.41)");
+   Print(NOME_ROBO + " carregado (versão interna 1.42)");
 #else
-   Print(NOME_ROBO + " v1.41 carregado");
+   Print(NOME_ROBO + " v1.42 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -1607,18 +1584,24 @@ bool LicencaPermiteEntrada()
    g_contratos = permitido;
    return true;
 #else
-   if(!LicencaAplica() || !LicencaVencida())
-      return true;
-   if(!g_avisouLicenca)
-      PrintFormat("Licença vencida em %s: nenhuma operação nova.", TimeToString(g_licValidade, TIME_DATE));
-   g_avisouLicenca = true;
-   return false;
+   if(!LicencaAplica())
+      return true;   // demo e testador: livres
+   int ctChave;
+   if(!ChaveOffline(ctChave))
+     {
+      if(!g_avisouLicenca)
+         Print(NOME_ROBO + ": conta real sem chave válida (inválida, de outra conta ou vencida). Nenhuma operação nova.");
+      g_avisouLicenca = true;
+      return false;
+     }
+   g_avisouLicenca = false;
+   g_contratos = (ctChave > 0) ? MathMin(InpContratos, ctChave) : InpContratos;
+   return true;
 #endif
   }
 
-#ifdef VERSAO_ALUNO
 // Chave offline válida para esta conta e no prazo. Conferida a cada uso porque,
-// logo que o MT5 abre, a conta ainda pode não estar conectada.
+// logo que o MT5 abre (ou a VPS reinicia), a conta ainda pode não estar conectada.
 bool ChaveOffline(int &contratos)
   {
    contratos = 0;
@@ -1627,6 +1610,8 @@ bool ChaveOffline(int &contratos)
    contratos = g_licMax;
    return true;
   }
+
+#ifdef VERSAO_ALUNO
 
 // Situação da licença no canto do gráfico.
 void MostrarLicenca()
