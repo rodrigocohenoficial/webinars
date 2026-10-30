@@ -6,7 +6,7 @@
 //| vem só do painel online, pelo número da conta (sem chave);        |
 //| não roda no testador e só aceita o contrato vigente do WIN.       |
 //| Precisa na mesma pasta: CohenScalper.mq5, CohenLicenca.mqh,       |
-//| CohenLicencaOnline.mqh e CohenLicencaSegredo.mqh.                 |
+//| CohenLicencaOnline.mqh, CohenLicencaSegredo.mqh e CohenComando.mqh.|
 //| Compile em X64 Regular (sem AVX2), senão PC antigo não carrega.   |
 //+------------------------------------------------------------------+
 #define VERSAO_ALUNO

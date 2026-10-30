@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.43"
+#property version   "1.44"
 
 #include <Trade\Trade.mqh>
 
@@ -40,8 +40,14 @@
 // segredo fica no CohenLicencaSegredo.mqh, fora do git.
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "1.3"
+#define LIC_VERSAO "1.4"
 #include "CohenLicencaOnline.mqh"
+
+// Liga e desliga pelo Trader Nation Terminal (app de mesa), pela pasta comum
+// do MT5. Desligado = não abre operação nova; sem o app, fica ligado.
+#define CMD_ROBO   LIC_ROBO
+#define CMD_VERSAO LIC_VERSAO
+#include "CohenComando.mqh"
 #endif
 
 enum ENUM_FORCA
@@ -255,7 +261,8 @@ int OnInit()
       Print(NOME_ROBO + ": a chave informada não vale para esta conta (inválida, de outra conta ou vencida).");
    LicOnline_DefinirMagic((long)InpMagic);   // o painel mostra contratos e entradas do dia
    LicOnline_Init();
-   EventSetTimer(60);
+   Comando_Init();
+   EventSetTimer(5);   // o app vê o robô também com o mercado parado; a licença segue a cada 10 min
    MostrarLicenca();
 #else
    // A licença nunca tira o robô do gráfico: é conferida antes de cada entrada
@@ -340,9 +347,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.43)");
+   Print(NOME_ROBO + " carregado (versão interna 1.44)");
 #else
-   Print(NOME_ROBO + " v1.43 carregado");
+   Print(NOME_ROBO + " v1.44 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -352,6 +359,7 @@ void OnDeinit(const int reason)
   {
 #ifdef VERSAO_ALUNO
    EventKillTimer();
+   Comando_Fim();
    Comment("");
 #endif
    if(g_arquivo != INVALID_HANDLE)
@@ -437,6 +445,9 @@ void AbrirArquivo()
 //+------------------------------------------------------------------+
 void OnTick()
   {
+#ifdef VERSAO_ALUNO
+   Comando_Atualizar();
+#endif
    DiagnosticarTick();
    int minutoAgora = MinutoDoDia(TimeCurrent());
 
@@ -1565,6 +1576,11 @@ string HmacSha256Hex(const string segredo, const string msg)
 bool LicencaPermiteEntrada()
   {
 #ifdef VERSAO_ALUNO
+   if(!Comando_Ligado())
+     {
+      MostrarLicenca();
+      return false;   // desligado pelo app: não abre operação nova
+     }
    int ctChave, ct;
    string motivo;
    if(!LicOnline_PodeOperar(ChaveOffline(ctChave), ctChave, ct, motivo))
@@ -1621,6 +1637,9 @@ void MostrarLicenca()
    bool pode = LicOnline_PodeOperar(ChaveOffline(ctChave), ctChave, ct, motivo);
    string txt = NOME_ROBO + "\nLicença: " +
                 (pode ? StringFormat("liberado, até %d contratos (%s)", ct, motivo) : "parado (" + motivo + ")");
+   if(!Comando_Ligado())
+      txt += "\nDesligado pelo Trader Nation Terminal";
+   Comando_Aviso(pode ? "licença: " + motivo : "parado: " + motivo);
    string aviso = LicOnline_Aviso();
    if(aviso != "")
       txt += "\n" + QuebrarLinhas("Aviso: " + aviso, 60);
@@ -1654,6 +1673,7 @@ string QuebrarLinhas(string texto, int largura)
 void OnTimer()
   {
    LicOnline_Timer();
+   Comando_Atualizar();
    MostrarLicenca();
   }
 #endif
