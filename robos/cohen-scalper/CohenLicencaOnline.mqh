@@ -64,6 +64,10 @@ string          g_lonAviso       = "";  // ultima mensagem ou aviso de atualizac
 bool            g_lonAvisouUrl   = false;
 string          g_lonUpdMostrada = "";
 long            g_lonMagic       = 0;   // numero magico do robo, para contar o movimento do dia
+int             g_lonCtConfig    = 0;   // contratos que o aluno configurou (0 = nao informado)
+uint            g_lonErroCod     = 0;   // ultima ordem recusada: retcode da corretora
+string          g_lonErroTxt     = "";
+datetime        g_lonErroEm      = 0;   // hora (GMT) da ultima ordem recusada
 
 //+------------------------------------------------------------------+
 //| Utilitarios de bytes                                             |
@@ -397,6 +401,14 @@ void LicVerificar()
                 +"&algo="+(TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) && MQLInfoInteger(MQL_TRADE_ALLOWED) ? "1" : "0")
                 +"&corretora="+(TerminalInfoInteger(TERMINAL_CONNECTED) ? "1" : "0")
                 +"&simbolo="+LicUrlEnc(_Symbol);
+   // Diagnostico para o painel: contratos configurados e a ultima ordem que a
+   // corretora recusou (ex.: margem insuficiente, Algotrading desligado).
+   if(g_lonCtConfig>0)
+      corpo+="&ct_config="+IntegerToString(g_lonCtConfig);
+   if(g_lonErroEm>0)
+      corpo+="&erro_cod="+IntegerToString(g_lonErroCod)
+             +"&erro_txt="+LicUrlEnc(StringSubstr(g_lonErroTxt,0,120))
+             +"&erro_em="+IntegerToString((long)g_lonErroEm);
    // Movimento do dia so de conta real: demo nao entra na contagem do painel.
    // No robo do Rodrigo (LIC_SO_REPORTE) vai sempre: a conta dele e a
    // referencia do "robo operou?" do suporte, mesmo sendo demo.
@@ -497,6 +509,20 @@ void LicVerificar()
 // Opcional, antes do LicOnline_Init: com o numero magico do robo, o painel
 // passa a mostrar quantos contratos e entradas o cliente fez no dia.
 void LicOnline_DefinirMagic(const long magic) { g_lonMagic=magic; }
+
+// Contratos que o aluno colocou nos parametros (o painel avisa quando o
+// numero nao deixa o robo operar, como 1).
+void LicOnline_DefinirContratos(const int contratos) { g_lonCtConfig=contratos; }
+
+// Chame quando a corretora recusar uma ordem, ex.:
+//   if(!trade.Buy(...)) LicOnline_RegistrarErro(trade.ResultRetcode(),trade.ResultRetcodeDescription());
+// O painel mostra "ordem recusada as HH:MM: margem insuficiente".
+void LicOnline_RegistrarErro(const uint retcode,const string texto)
+  {
+   g_lonErroCod=retcode;
+   g_lonErroTxt=texto;
+   g_lonErroEm=TimeGMT();
+  }
 
 // Chame no OnInit.
 void LicOnline_Init()

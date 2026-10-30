@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.45"
+#property version   "1.46"
 
 #include <Trade\Trade.mqh>
 
@@ -40,7 +40,7 @@
 // segredo fica no CohenLicencaSegredo.mqh, fora do git.
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "1.4"
+#define LIC_VERSAO "1.5"
 #include "CohenLicencaOnline.mqh"
 
 // Liga e desliga pelo Trader Nation Terminal (app de mesa), pela pasta comum
@@ -55,7 +55,7 @@
 #define LIC_SO_REPORTE
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "1.4"
+#define LIC_VERSAO "1.5"
 #include "CohenLicencaOnline.mqh"
 #endif
 
@@ -169,7 +169,48 @@ input group "Reentrada"
 PARAM int                  InpMaxReentradas = 0;                  // Reentradas por sinal depois de sair no 0x0 (0 = desligado)
 PARAM int                  InpReentradaMin  = 5;                  // Minutos para o preço voltar à entrada
 
-CTrade   trade;
+// Toda ordem passa por aqui: se a corretora recusar (margem, Algotrading
+// desligado, mercado fechado...), o painel fica sabendo e mostra "ordem
+// recusada às HH:MM: motivo". Cancelamento de ordem pendente não entra: a
+// ordem já executada ou cancelada recusa o cancelamento sem ser problema.
+class CTradeCohen : public CTrade
+  {
+private:
+   bool              Conferir(const bool ok)
+     {
+      uint rc = ResultRetcode();
+      bool aceita = (rc == TRADE_RETCODE_DONE || rc == TRADE_RETCODE_PLACED ||
+                     rc == TRADE_RETCODE_DONE_PARTIAL || rc == TRADE_RETCODE_NO_CHANGES);
+      if(!ok || !aceita)
+         LicOnline_RegistrarErro(rc, ResultRetcodeDescription());
+      return ok;
+     }
+public:
+   bool              Buy(const double volume, const string symbol, double price, const double sl, const double tp, const string comment)
+     { return Conferir(CTrade::Buy(volume, symbol, price, sl, tp, comment)); }
+   bool              Sell(const double volume, const string symbol, double price, const double sl, const double tp, const string comment)
+     { return Conferir(CTrade::Sell(volume, symbol, price, sl, tp, comment)); }
+   bool              BuyLimit(const double volume, const double price, const string symbol, const double sl, const double tp,
+                              const ENUM_ORDER_TYPE_TIME type_time, const datetime expiration, const string comment)
+     { return Conferir(CTrade::BuyLimit(volume, price, symbol, sl, tp, type_time, expiration, comment)); }
+   bool              SellLimit(const double volume, const double price, const string symbol, const double sl, const double tp,
+                               const ENUM_ORDER_TYPE_TIME type_time, const datetime expiration, const string comment)
+     { return Conferir(CTrade::SellLimit(volume, price, symbol, sl, tp, type_time, expiration, comment)); }
+   bool              BuyStop(const double volume, const double price, const string symbol, const double sl, const double tp,
+                             const ENUM_ORDER_TYPE_TIME type_time, const datetime expiration, const string comment)
+     { return Conferir(CTrade::BuyStop(volume, price, symbol, sl, tp, type_time, expiration, comment)); }
+   bool              SellStop(const double volume, const double price, const string symbol, const double sl, const double tp,
+                              const ENUM_ORDER_TYPE_TIME type_time, const datetime expiration, const string comment)
+     { return Conferir(CTrade::SellStop(volume, price, symbol, sl, tp, type_time, expiration, comment)); }
+   bool              PositionModify(const ulong ticket, const double sl, const double tp)
+     { return Conferir(CTrade::PositionModify(ticket, sl, tp)); }
+   bool              PositionClose(const ulong ticket)
+     { return Conferir(CTrade::PositionClose(ticket)); }
+   bool              PositionClosePartial(const ulong ticket, const double volume)
+     { return Conferir(CTrade::PositionClosePartial(ticket, volume)); }
+  };
+
+CTradeCohen trade;
 double   g_contratos     = 0;     // contratos por entrada, já limitados pela licença
 bool     g_avisouLicenca = false;
 long     g_licConta      = 0;     // dados da chave de licença
@@ -268,6 +309,7 @@ int OnInit()
                   g_licConta, TimeToString(g_licValidade, TIME_DATE), g_licMax);
    else if(StringLen(InpChave) > 0)
       Print(NOME_ROBO + ": a chave informada não vale para esta conta (inválida, de outra conta ou vencida).");
+   LicOnline_DefinirContratos((int)InpContratos);   // o painel avisa contratos que não deixam operar
    LicOnline_DefinirMagic((long)InpMagic);   // o painel mostra contratos e entradas do dia
    LicOnline_Init();
    Comando_Init();
@@ -286,6 +328,7 @@ int OnInit()
       else
          Print(NOME_ROBO + ": a chave informada é inválida (ela só é exigida em conta real).");
      }
+   LicOnline_DefinirContratos((int)InpContratos);   // o painel avisa contratos que não deixam operar
    LicOnline_DefinirMagic((long)InpMagic);   // movimento do dia para o painel
    LicOnline_Init();
    EventSetTimer(60);
@@ -359,9 +402,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.45)");
+   Print(NOME_ROBO + " carregado (versão interna 1.46)");
 #else
-   Print(NOME_ROBO + " v1.45 carregado");
+   Print(NOME_ROBO + " v1.46 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -1647,8 +1690,17 @@ void MostrarLicenca()
    int ctChave, ct;
    string motivo;
    bool pode = LicOnline_PodeOperar(ChaveOffline(ctChave), ctChave, ct, motivo);
+   // Os mesmos contratos que LicencaPermiteEntrada usa: o menor entre o
+   // parâmetro e a licença, em número par (a parcial é metade da posição).
+   int efetivo = (int)MathMin(InpContratos, ct);
+   efetivo -= efetivo % 2;
+   if(pode && efetivo < 2)
+     {
+      pode = false;
+      motivo = StringFormat("a licença libera %d contrato(s); o robô opera com 2 ou mais, em número par", ct);
+     }
    string txt = NOME_ROBO + "\nLicença: " +
-                (pode ? StringFormat("liberado, até %d contratos (%s)", ct, motivo) : "parado (" + motivo + ")");
+                (pode ? StringFormat("liberado, %d contratos (%s)", efetivo, motivo) : "parado (" + motivo + ")");
    if(!Comando_Ligado())
       txt += "\nDesligado pelo Trader Nation Terminal";
    Comando_Aviso(pode ? "licença: " + motivo : "parado: " + motivo);
