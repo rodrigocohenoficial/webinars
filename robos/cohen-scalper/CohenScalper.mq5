@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.46"
+#property version   "1.47"
 
 #include <Trade\Trade.mqh>
 
@@ -40,7 +40,7 @@
 // segredo fica no CohenLicencaSegredo.mqh, fora do git.
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "1.5"
+#define LIC_VERSAO "1.6"
 #include "CohenLicencaOnline.mqh"
 
 // Liga e desliga pelo Trader Nation Terminal (app de mesa), pela pasta comum
@@ -55,7 +55,7 @@
 #define LIC_SO_REPORTE
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "1.5"
+#define LIC_VERSAO "1.6"
 #include "CohenLicencaOnline.mqh"
 #endif
 
@@ -402,9 +402,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.46)");
+   Print(NOME_ROBO + " carregado (versão interna 1.47)");
 #else
-   Print(NOME_ROBO + " v1.46 carregado");
+   Print(NOME_ROBO + " v1.47 carregado");
 #endif
    return INIT_SUCCEEDED;
   }

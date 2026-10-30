@@ -327,35 +327,93 @@ void LicMostrarAvisos(const string &chaves[],const string &valores[])
 //| (hora do servidor da corretora). Vai junto com a verificacao,    |
 //| para o painel mostrar quanto cada cliente operou.                |
 //+------------------------------------------------------------------+
-void LicMovimentoHoje(int &entradas,long &contratos,double &resultado)
+bool LicTemPosicao(const ulong &lista[],const ulong pos)
+  {
+   for(int i=0;i<ArraySize(lista);i++)
+      if(lista[i]==pos)
+         return true;
+   return false;
+  }
+
+// Movimento do robo entre `inicio` e `fim` (hora do servidor da corretora).
+// Operacoes = posicoes que o robo abriu (uma ordem executada em partes conta
+// uma vez). Resultado = todos os negocios dessas posicoes, inclusive saida
+// manual ou zeragem da corretora, que nao levam o numero magico do robo.
+void LicMovimentoEntre(const datetime inicio,const datetime fim,int &entradas,long &contratos,double &resultado)
   {
    entradas=0;
    contratos=0;
    resultado=0;
    if(g_lonMagic==0)
       return;
-   MqlDateTime t;
-   TimeToStruct(TimeCurrent(),t);
-   t.hour=0;
-   t.min=0;
-   t.sec=0;
-   if(!HistorySelect(StructToTime(t),TimeCurrent()+60))
+   if(!HistorySelect(inicio,fim))
       return;
    int n=HistoryDealsTotal();
+   ulong posicoes[];
    for(int i=0;i<n;i++)
      {
       ulong tk=HistoryDealGetTicket(i);
       if(tk==0 || HistoryDealGetInteger(tk,DEAL_MAGIC)!=g_lonMagic)
          continue;
-      // Resultado liquido do dia (R$): lucro, corretagem, taxas e swap.
-      resultado+=HistoryDealGetDouble(tk,DEAL_PROFIT)+HistoryDealGetDouble(tk,DEAL_COMMISSION)
-                 +HistoryDealGetDouble(tk,DEAL_SWAP)+HistoryDealGetDouble(tk,DEAL_FEE);
       long e=HistoryDealGetInteger(tk,DEAL_ENTRY);
       if(e!=DEAL_ENTRY_IN && e!=DEAL_ENTRY_INOUT)
          continue;
-      entradas++;
       contratos+=(long)MathRound(HistoryDealGetDouble(tk,DEAL_VOLUME));
+      ulong pos=(ulong)HistoryDealGetInteger(tk,DEAL_POSITION_ID);
+      if(!LicTemPosicao(posicoes,pos))
+        {
+         int k=ArraySize(posicoes);
+         ArrayResize(posicoes,k+1);
+         posicoes[k]=pos;
+        }
      }
+   entradas=ArraySize(posicoes);
+   for(int i=0;i<n;i++)
+     {
+      ulong tk=HistoryDealGetTicket(i);
+      if(tk==0)
+         continue;
+      ulong pos=(ulong)HistoryDealGetInteger(tk,DEAL_POSITION_ID);
+      if(!LicTemPosicao(posicoes,pos) && HistoryDealGetInteger(tk,DEAL_MAGIC)!=g_lonMagic)
+         continue;
+      // Resultado liquido (R$): lucro, corretagem, taxas e swap.
+      resultado+=HistoryDealGetDouble(tk,DEAL_PROFIT)+HistoryDealGetDouble(tk,DEAL_COMMISSION)
+                 +HistoryDealGetDouble(tk,DEAL_SWAP)+HistoryDealGetDouble(tk,DEAL_FEE);
+     }
+  }
+
+datetime LicInicioDoDia(const datetime quando)
+  {
+   MqlDateTime t;
+   TimeToStruct(quando,t);
+   t.hour=0;
+   t.min=0;
+   t.sec=0;
+   return StructToTime(t);
+  }
+
+void LicMovimentoHoje(int &entradas,long &contratos,double &resultado)
+  {
+   LicMovimentoEntre(LicInicioDoDia(TimeCurrent()),TimeCurrent()+60,entradas,contratos,resultado);
+  }
+
+// Ultimo dia (antes de hoje, ate 5 dias atras) em que o robo operou: vai
+// junto para o painel receber o fechamento mesmo se o MT5 foi desligado
+// antes da ultima posicao terminar.
+bool LicMovimentoAnterior(datetime &dia,int &entradas,long &contratos,double &resultado)
+  {
+   datetime hoje=LicInicioDoDia(TimeCurrent());
+   for(int d=1;d<=5;d++)
+     {
+      datetime ini=hoje-d*86400;
+      LicMovimentoEntre(ini,ini+86400-1,entradas,contratos,resultado);
+      if(contratos>0)
+        {
+         dia=ini;
+         return true;
+        }
+     }
+   return false;
   }
 
 // Sem resposta valida do servidor.
@@ -428,6 +486,15 @@ void LicVerificar()
              +"&entradas="+IntegerToString(entradas)
              +"&contratos="+IntegerToString(contratos)
              +"&resultado="+DoubleToString(resultado,2);
+      datetime ant;
+      if(LicMovimentoAnterior(ant,entradas,contratos,resultado))
+        {
+         TimeToStruct(ant,d);
+         corpo+="&dia_ant="+StringFormat("%04d.%02d.%02d",d.year,d.mon,d.day)
+                +"&entradas_ant="+IntegerToString(entradas)
+                +"&contratos_ant="+IntegerToString(contratos)
+                +"&resultado_ant="+DoubleToString(resultado,2);
+        }
      }
 
    uchar u[];
