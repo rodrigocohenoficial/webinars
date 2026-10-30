@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.44"
+#property version   "1.45"
 
 #include <Trade\Trade.mqh>
 
@@ -48,6 +48,15 @@
 #define CMD_ROBO   LIC_ROBO
 #define CMD_VERSAO LIC_VERSAO
 #include "CohenComando.mqh"
+#else
+// Versão completa: só informa ao painel o movimento do dia (é a conta de
+// referência do suporte para "o robô operou hoje?"). A licença online não
+// trava este robô: LicOnline_PodeOperar não é usada aqui.
+#define LIC_SO_REPORTE
+#define LIC_URL    "https://robos.tradernation.com.br"
+#define LIC_ROBO   "CohenScalper"
+#define LIC_VERSAO "1.4"
+#include "CohenLicencaOnline.mqh"
 #endif
 
 enum ENUM_FORCA
@@ -277,6 +286,9 @@ int OnInit()
       else
          Print(NOME_ROBO + ": a chave informada é inválida (ela só é exigida em conta real).");
      }
+   LicOnline_DefinirMagic((long)InpMagic);   // movimento do dia para o painel
+   LicOnline_Init();
+   EventSetTimer(60);
 #endif
 
    g_tick = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
@@ -347,9 +359,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.44)");
+   Print(NOME_ROBO + " carregado (versão interna 1.45)");
 #else
-   Print(NOME_ROBO + " v1.44 carregado");
+   Print(NOME_ROBO + " v1.45 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -357,8 +369,8 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
   {
-#ifdef VERSAO_ALUNO
    EventKillTimer();
+#ifdef VERSAO_ALUNO
    Comando_Fim();
    Comment("");
 #endif
@@ -1675,6 +1687,11 @@ void OnTimer()
    LicOnline_Timer();
    Comando_Atualizar();
    MostrarLicenca();
+  }
+#else
+void OnTimer()
+  {
+   LicOnline_Timer();   // só o movimento do dia para o painel
   }
 #endif
 

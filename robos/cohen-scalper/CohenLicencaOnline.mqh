@@ -285,6 +285,11 @@ bool LicUsarCache()
 //+------------------------------------------------------------------+
 void LicMostrarAvisos(const string &chaves[],const string &valores[])
   {
+#ifdef LIC_SO_REPORTE
+   // Robo do Rodrigo: so informa o movimento, sem alerta de mensagem nem de
+   // atualizacao (essas sao para os alunos).
+   return;
+#endif
    // Mensagem em massa. O alerta aparece uma vez por terminal (cada id);
    // o texto fica em LicOnline_Aviso() enquanto estiver no ar, para o robo
    // mostrar no canto do grafico. Tirou do ar no painel, some do grafico.
@@ -393,7 +398,13 @@ void LicVerificar()
                 +"&corretora="+(TerminalInfoInteger(TERMINAL_CONNECTED) ? "1" : "0")
                 +"&simbolo="+LicUrlEnc(_Symbol);
    // Movimento do dia so de conta real: demo nao entra na contagem do painel.
+   // No robo do Rodrigo (LIC_SO_REPORTE) vai sempre: a conta dele e a
+   // referencia do "robo operou?" do suporte, mesmo sendo demo.
+#ifdef LIC_SO_REPORTE
+   if(g_lonMagic!=0)
+#else
    if(g_lonMagic!=0 && AccountInfoInteger(ACCOUNT_TRADE_MODE)==ACCOUNT_TRADE_MODE_REAL)
+#endif
      {
       int entradas;
       long contratos;
