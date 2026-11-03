@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.47"
+#property version   "1.48"
 
 #include <Trade\Trade.mqh>
 
@@ -40,7 +40,7 @@
 // segredo fica no CohenLicencaSegredo.mqh, fora do git.
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "1.6"
+#define LIC_VERSAO "1.7"
 #include "CohenLicencaOnline.mqh"
 
 // Liga e desliga pelo Trader Nation Terminal (app de mesa), pela pasta comum
@@ -55,7 +55,7 @@
 #define LIC_SO_REPORTE
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "1.6"
+#define LIC_VERSAO "1.7"
 #include "CohenLicencaOnline.mqh"
 #endif
 
@@ -155,6 +155,8 @@ PARAM int                  InpMargemBloqMin = 5;                  // Minutos ant
 input group "Gestão diária"
 #endif
 input double               InpContratos     = 2;                  // Contratos por entrada
+input double               InpMetaDiaReais  = 0;                  // Meta de ganho do dia (R$, 0 = sem meta)
+input double               InpLossDiaReais  = 0;                  // Limite de perda do dia (R$, 0 = sem limite)
 PARAM double               InpMetaDiaPts    = 1500;               // Meta do dia (pontos, 0 = sem meta)
 PARAM double               InpLossDiaPts    = 500;                // Loss máximo do dia (pontos, 0 = sem limite)
 PARAM int                  InpMaxOperacoes  = 0;                  // Máximo de operações no dia (0 = sem limite)
@@ -281,6 +283,7 @@ int      g_falhasParcial = 0;          // recusas da ordem limitada nesta posiç
 ulong    g_ticketAlvo    = 0;          // ordem limitada do alvo final, pendente no servidor
 bool     g_alvoColocado  = false;      // o alvo limitado desta posição já foi colocado
 int      g_falhasAlvo    = 0;          // recusas da ordem limitada do alvo nesta posição
+datetime g_diaEncerradoAvisado = 0;    // dia em que já avisou que a meta ou o limite em R$ foi atingido
 
 //+------------------------------------------------------------------+
 int OnInit()
@@ -402,9 +405,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.47)");
+   Print(NOME_ROBO + " carregado (versão interna 1.48)");
 #else
-   Print(NOME_ROBO + " v1.47 carregado");
+   Print(NOME_ROBO + " v1.48 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -564,7 +567,8 @@ void MonitorarReentrada(int minutoAgora)
    if((InpMetaDiaPts > 0 && pontosDia >= InpMetaDiaPts) ||
       (InpLossDiaPts > 0 && pontosDia <= -InpLossDiaPts) ||
       (InpMaxOperacoes > 0 && operacoes >= InpMaxOperacoes) ||
-      (InpMaxStopsDia > 0 && stops >= InpMaxStopsDia))
+      (InpMaxStopsDia > 0 && stops >= InpMaxStopsDia) ||
+      MotivoDiaEncerrado() != "")
      {
       g_reDir = 0;
       return;
@@ -661,6 +665,16 @@ void NovoCandle(datetime abertura)
    if(InpMaxStopsDia > 0 && stops >= InpMaxStopsDia)
      {
       Registrar(abertura, StringFormat("sem entrada: %d stops no dia", stops));
+      return;
+     }
+   string encerrado = MotivoDiaEncerrado();
+   if(encerrado != "")
+     {
+      datetime hoje = InicioDoDia(TimeCurrent());
+      if(g_diaEncerradoAvisado != hoje)
+         Print(NOME_ROBO + ": " + encerrado + ". Sem novas entradas hoje.");
+      g_diaEncerradoAvisado = hoje;
+      Registrar(abertura, "sem entrada: " + encerrado);
       return;
      }
 
@@ -1703,6 +1717,9 @@ void MostrarLicenca()
                 (pode ? StringFormat("liberado, %d contratos (%s)", efetivo, motivo) : "parado (" + motivo + ")");
    if(!Comando_Ligado())
       txt += "\nDesligado pelo Trader Nation Terminal";
+   string encerrado = MotivoDiaEncerrado();
+   if(encerrado != "")
+      txt += "\nDia encerrado: " + encerrado;
    Comando_Aviso(pode ? "licença: " + motivo : "parado: " + motivo);
    string aviso = LicOnline_Aviso();
    if(aviso != "")
@@ -2004,6 +2021,68 @@ int MinutoDoDia(datetime t)
    MqlDateTime d;
    TimeToStruct(t, d);
    return d.hour * 60 + d.min;
+  }
+
+// Resultado do dia em R$ das posições que o robô abriu hoje: lucro, corretagem,
+// taxas e swap de todos os negócios dessas posições, inclusive saída manual ou
+// zeragem da corretora. Custos que a corretora só lança no dia seguinte (como
+// os emolumentos da B3 na XP) não entram.
+double ResultadoDoDiaReais()
+  {
+   if(!HistorySelect(InicioDoDia(TimeCurrent()), TimeCurrent() + 60))
+      return 0;
+   int n = HistoryDealsTotal();
+   long posicoes[];
+   for(int i = 0; i < n; i++)
+     {
+      ulong deal = HistoryDealGetTicket(i);
+      if(deal == 0 || HistoryDealGetString(deal, DEAL_SYMBOL) != _Symbol ||
+         (ulong)HistoryDealGetInteger(deal, DEAL_MAGIC) != InpMagic)
+         continue;
+      long entrada = HistoryDealGetInteger(deal, DEAL_ENTRY);
+      if(entrada != DEAL_ENTRY_IN && entrada != DEAL_ENTRY_INOUT)
+         continue;
+      long id = HistoryDealGetInteger(deal, DEAL_POSITION_ID);
+      bool tem = false;
+      for(int k = 0; k < ArraySize(posicoes) && !tem; k++)
+         tem = (posicoes[k] == id);
+      if(!tem)
+        {
+         int m = ArraySize(posicoes);
+         ArrayResize(posicoes, m + 1);
+         posicoes[m] = id;
+        }
+     }
+   double reais = 0;
+   for(int i = 0; i < n; i++)
+     {
+      ulong deal = HistoryDealGetTicket(i);
+      if(deal == 0)
+         continue;
+      long id = HistoryDealGetInteger(deal, DEAL_POSITION_ID);
+      bool doRobo = ((ulong)HistoryDealGetInteger(deal, DEAL_MAGIC) == InpMagic);
+      for(int k = 0; k < ArraySize(posicoes) && !doRobo; k++)
+         doRobo = (posicoes[k] == id);
+      if(!doRobo)
+         continue;
+      reais += HistoryDealGetDouble(deal, DEAL_PROFIT) + HistoryDealGetDouble(deal, DEAL_COMMISSION) +
+               HistoryDealGetDouble(deal, DEAL_SWAP) + HistoryDealGetDouble(deal, DEAL_FEE);
+     }
+   return reais;
+  }
+
+// Meta de ganho ou limite de perda do dia em R$ atingidos: o robô não abre
+// operação nova até o dia seguinte. A posição aberta segue com o stop e o alvo.
+string MotivoDiaEncerrado()
+  {
+   if(InpMetaDiaReais <= 0 && InpLossDiaReais <= 0)
+      return "";
+   double reais = ResultadoDoDiaReais();
+   if(InpMetaDiaReais > 0 && reais >= InpMetaDiaReais)
+      return StringFormat("meta do dia atingida (R$ %.2f)", reais);
+   if(InpLossDiaReais > 0 && reais <= -InpLossDiaReais)
+      return StringFormat("limite de perda do dia atingido (R$ %.2f)", reais);
+   return "";
   }
 
 datetime InicioDoDia(datetime t)
