@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.50"
+#property version   "1.51"
 
 #include <Trade\Trade.mqh>
 
@@ -406,9 +406,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.50)");
+   Print(NOME_ROBO + " carregado (versão interna 1.51)");
 #else
-   Print(NOME_ROBO + " v1.50 carregado");
+   Print(NOME_ROBO + " v1.51 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -959,7 +959,10 @@ void MonitorarRetorno()
    ulong t; long tipo; double vol, preco, sl, tp;
    if(BuscarPosicao(t, tipo, vol, preco, sl, tp))
      {
-      g_retornoDir = 0;   // entrou
+      // Entrou. Se a ordem stop executou só em parte (1 de 2), o resto é
+      // cancelado: executado mais tarde, ele aumentaria a posição em outro preço.
+      CancelarPendentes();
+      g_retornoDir = 0;
       return;
      }
 
