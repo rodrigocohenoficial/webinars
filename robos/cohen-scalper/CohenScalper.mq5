@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.48"
+#property version   "1.49"
 
 #include <Trade\Trade.mqh>
 
@@ -40,7 +40,7 @@
 // segredo fica no CohenLicencaSegredo.mqh, fora do git.
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "1.7"
+#define LIC_VERSAO "1.8"
 #include "CohenLicencaOnline.mqh"
 
 // Liga e desliga pelo Trader Nation Terminal (app de mesa), pela pasta comum
@@ -55,7 +55,7 @@
 #define LIC_SO_REPORTE
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "1.7"
+#define LIC_VERSAO "1.8"
 #include "CohenLicencaOnline.mqh"
 #endif
 
@@ -283,7 +283,8 @@ int      g_falhasParcial = 0;          // recusas da ordem limitada nesta posiç
 ulong    g_ticketAlvo    = 0;          // ordem limitada do alvo final, pendente no servidor
 bool     g_alvoColocado  = false;      // o alvo limitado desta posição já foi colocado
 int      g_falhasAlvo    = 0;          // recusas da ordem limitada do alvo nesta posição
-datetime g_diaEncerradoAvisado = 0;    // dia em que já avisou que a meta ou o limite em R$ foi atingido
+datetime g_diaEncerradoAvisado = 0;
+datetime g_tSumiuParcial = 0;          // quando a parcial limitada saiu das pendentes sem aparecer no histórico    // dia em que já avisou que a meta ou o limite em R$ foi atingido
 
 //+------------------------------------------------------------------+
 int OnInit()
@@ -405,9 +406,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.48)");
+   Print(NOME_ROBO + " carregado (versão interna 1.49)");
 #else
-   Print(NOME_ROBO + " v1.48 carregado");
+   Print(NOME_ROBO + " v1.49 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -1060,6 +1061,7 @@ void GerenciarPosicao(int minutoAgora)
       g_volAntesParcial = 0;
       g_tCruzou = 0;
       g_falhasParcial = 0;
+      g_tSumiuParcial = 0;
       CancelarParcial();   // sem posição, uma parcial pendente abriria posição contrária
       g_alvoColocado = false;
       g_falhasAlvo = 0;
@@ -1088,6 +1090,7 @@ void GerenciarPosicao(int minutoAgora)
             g_parcialFeita = false;
             g_volAntesParcial = 0;
             g_falhasParcial = 0;
+            g_tSumiuParcial = 0;
             CancelarParcial();
             g_alvoColocado = false;
             g_falhasAlvo = 0;
@@ -1211,10 +1214,25 @@ void GerenciarPosicao(int minutoAgora)
                g_parcialFeita    = true;     // espera a posição refletir (trava abaixo)
                g_volAntesParcial = volume;
                g_tParcial        = TimeCurrent();
+               g_ticketParcial   = 0;
+               g_tSumiuParcial   = 0;
+              }
+            else if(estado == ORDER_STATE_CANCELED || estado == ORDER_STATE_REJECTED || estado == ORDER_STATE_EXPIRED ||
+                    (g_tSumiuParcial > 0 && TimeCurrent() - g_tSumiuParcial >= 10))
+              {
+               if(DETALHES) Print("Ordem limitada da parcial não está mais no servidor. O robô assume a parcial.");
+               g_ticketParcial = 0;
+               g_tSumiuParcial = 0;
               }
             else
-               if(DETALHES) Print("Ordem limitada da parcial não está mais no servidor. O robô assume a parcial.");
-            g_ticketParcial = 0;
+              {
+               // Saiu das pendentes e ainda não está no histórico: a execução
+               // pode estar chegando. Espera a posição ou o histórico refletirem
+               // por até 10 s antes de assumir a parcial a mercado.
+               if(g_tSumiuParcial == 0)
+                  g_tSumiuParcial = TimeCurrent();
+               return;
+              }
            }
         }
       else if(g_volAntesParcial == 0 && volume >= volCheio && g_falhasParcial < 3)
@@ -1243,7 +1261,16 @@ void GerenciarPosicao(int minutoAgora)
    if(alvoLimitado)
      {
       if(g_ticketAlvo != 0 && !OrderSelect(g_ticketAlvo))
-         g_ticketAlvo = 0;   // executou ou saiu do livro; sem ela, o robô cuida do alvo
+        {
+         // Só volta a cuidar do alvo se a ordem saiu do livro sem executar.
+         // Executada (ou com a execução ainda chegando), a posição zera sozinha.
+         long estado = HistoryOrderSelect(g_ticketAlvo) ? HistoryOrderGetInteger(g_ticketAlvo, ORDER_STATE) : -1;
+         if(estado == ORDER_STATE_CANCELED || estado == ORDER_STATE_REJECTED || estado == ORDER_STATE_EXPIRED)
+           {
+            g_ticketAlvo   = 0;
+            g_alvoColocado = false;
+           }
+        }
       else if(!g_alvoColocado)
         {
          double volParc = (usaParcial && !g_parcialFeita) ? AjustarVolume(volCheio * InpParcialPct / 100.0) : 0;
@@ -1327,8 +1354,10 @@ void GerenciarPosicao(int minutoAgora)
          precoSaida = livro;
      }
 
-   // Alvo fora do servidor e sem ordem limitada no livro: o robô executa na hora.
-   if(!alvoNoServ && g_ticketAlvo == 0 && (precoSaida - alvo) * dir >= 0)
+   // Alvo fora do servidor e sem ordem limitada colocada: o robô executa na hora.
+   // Com a limitada colocada, nunca zera a mercado: as duas saídas juntas viram
+   // a mão (04/11: -R$ 70 na demo com 20 contratos).
+   if(!alvoNoServ && !g_alvoColocado && (precoSaida - alvo) * dir >= 0)
      {
       g_motivoSaida = "alvo";
       trade.PositionClose(ticket);
