@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.49"
+#property version   "1.50"
 
 #include <Trade\Trade.mqh>
 
@@ -406,9 +406,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.49)");
+   Print(NOME_ROBO + " carregado (versão interna 1.50)");
 #else
-   Print(NOME_ROBO + " v1.49 carregado");
+   Print(NOME_ROBO + " v1.50 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -985,6 +985,26 @@ void MonitorarRetorno()
       CancelarPendentes();
       g_retornoDir = 0;
       return;
+     }
+
+   // O candle sinal continua sendo sinal? Em conta (sobretudo na demo da XP) os
+   // preços chegam atrasados e o candle pode mudar depois de fechar: em 04/11 o
+   // robô vendeu sobre o candle das 10:35 que, nos dados finais, era um doji de
+   // alta dentro do anterior. Conferido a cada tick até entrar. No testador os
+   // candles não mudam, então lá não precisa.
+   if(!MQLInfoInteger(MQL_TESTER))
+     {
+      string releitura;
+      if(Sinal(releitura) != g_retornoDir)
+        {
+         if(DETALHES)
+            Print("Sinal desfeito: o candle sinal mudou nos dados da corretora (" + releitura + "). Entrada cancelada.");
+         Registrar(iTime(_Symbol, InpTimeframe, 0), "retorno cancelado: candle sinal mudou (" + releitura + ")");
+         CancelarPendentes();
+         g_retornoDir    = 0;
+         g_retornoNoRobo = false;
+         return;
+        }
      }
 
    if(g_recuou)
