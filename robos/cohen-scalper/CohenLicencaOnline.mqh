@@ -63,7 +63,11 @@ string          g_lonMotivo      = "verificando licenca...";
 string          g_lonAviso       = "";  // ultima mensagem ou aviso de atualizacao
 bool            g_lonAvisouUrl   = false;
 string          g_lonUpdMostrada = "";
-long            g_lonMagic       = 0;   // numero magico do robo, para contar o movimento do dia
+long            g_lonMagic       = 0;
+bool            g_lonPosInformada = false; // o robo informou a posicao (versoes antigas nao informam)
+double          g_lonPosVol      = 0;      // contratos na posicao do robo (0 = sem posicao)
+bool            g_lonPosSl       = true;   // a posicao tem stop
+datetime        g_lonPosDesde    = 0;      // abertura da posicao (GMT)   // numero magico do robo, para contar o movimento do dia
 int             g_lonCtConfig    = 0;   // contratos que o aluno configurou (0 = nao informado)
 uint            g_lonErroCod     = 0;   // ultima ordem recusada: retcode da corretora
 string          g_lonErroTxt     = "";
@@ -463,6 +467,11 @@ void LicVerificar()
    // corretora recusou (ex.: margem insuficiente, Algotrading desligado).
    if(g_lonCtConfig>0)
       corpo+="&ct_config="+IntegerToString(g_lonCtConfig);
+   // Posicao do robo agora: o painel avisa posicao aberta sem stop.
+   if(g_lonPosInformada)
+      corpo+="&pos_vol="+IntegerToString((long)MathRound(g_lonPosVol))
+             +"&pos_sl="+(g_lonPosSl ? "1" : "0")
+             +"&pos_desde="+IntegerToString((long)g_lonPosDesde);
    if(g_lonErroEm>0)
       corpo+="&erro_cod="+IntegerToString(g_lonErroCod)
              +"&erro_txt="+LicUrlEnc(StringSubstr(g_lonErroTxt,0,120))
@@ -580,6 +589,16 @@ void LicOnline_DefinirMagic(const long magic) { g_lonMagic=magic; }
 // Contratos que o aluno colocou nos parametros (o painel avisa quando o
 // numero nao deixa o robo operar, como 1).
 void LicOnline_DefinirContratos(const int contratos) { g_lonCtConfig=contratos; }
+
+// Posicao do robo agora (chame a cada timer): contratos, se tem stop e a hora
+// de abertura em GMT. Vai em pos_vol, pos_sl e pos_desde.
+void LicOnline_DefinirPosicao(const double vol,const bool temSl,const datetime desdeGmt)
+  {
+   g_lonPosInformada=true;
+   g_lonPosVol=vol;
+   g_lonPosSl=temSl;
+   g_lonPosDesde=(vol>0 ? desdeGmt : 0);
+  }
 
 // Chame quando a corretora recusar uma ordem, ex.:
 //   if(!trade.Buy(...)) LicOnline_RegistrarErro(trade.ResultRetcode(),trade.ResultRetcodeDescription());

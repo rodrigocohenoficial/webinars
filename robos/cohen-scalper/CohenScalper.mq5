@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.51"
+#property version   "1.52"
 
 #include <Trade\Trade.mqh>
 
@@ -40,7 +40,7 @@
 // segredo fica no CohenLicencaSegredo.mqh, fora do git.
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "1.8"
+#define LIC_VERSAO "1.9"
 #include "CohenLicencaOnline.mqh"
 
 // Liga e desliga pelo Trader Nation Terminal (app de mesa), pela pasta comum
@@ -55,7 +55,7 @@
 #define LIC_SO_REPORTE
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "1.8"
+#define LIC_VERSAO "1.9"
 #include "CohenLicencaOnline.mqh"
 #endif
 
@@ -230,6 +230,8 @@ bool     g_retornoNoRobo = false;  // ordem stop recusada: o robô entra quando 
 double   g_retornoExtremo = 0;    // até onde o preço recuou enquanto a entrada estava armada
 double   g_precoReferencia = 0;   // preço no envio da ordem, reserva se a posição vier sem preço
 int      g_falhasStop    = 0;
+datetime g_tSemStop      = 0;     // desde quando (relógio do PC) a posição do robô está sem stop
+datetime g_tAvisoSemStop = 0;
 bool     g_hedging       = false;
 double   g_tick          = 0;
 int      g_minInicio, g_minUltima, g_minZerar, g_minTendencia;
@@ -335,7 +337,7 @@ int OnInit()
    LicOnline_DefinirContratos((int)InpContratos);   // o painel avisa contratos que não deixam operar
    LicOnline_DefinirMagic((long)InpMagic);   // movimento do dia para o painel
    LicOnline_Init();
-   EventSetTimer(60);
+   EventSetTimer(5);   // cuida da posição também sem negócio chegando; o painel segue a cada 10 min
 #endif
 
    g_tick = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
@@ -406,9 +408,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.51)");
+   Print(NOME_ROBO + " carregado (versão interna 1.52)");
 #else
-   Print(NOME_ROBO + " v1.51 carregado");
+   Print(NOME_ROBO + " v1.52 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -1017,11 +1019,7 @@ void MonitorarRetorno()
       if(g_retornoNoRobo && (ultimo - g_retornoPreco) * g_retornoDir >= 0)
         {
          g_retornoNoRobo = false;
-         double vol = AjustarVolume(g_contratos);
-         if(g_retornoDir > 0)
-            trade.Buy(vol, _Symbol, 0, 0, 0, COMENT("retorno"));
-         else
-            trade.Sell(vol, _Symbol, 0, 0, 0, COMENT("retorno"));
+         EntrarRetornoMercado(AjustarVolume(g_contratos));
         }
       return;   // ordem stop já está na abertura
      }
@@ -1046,15 +1044,10 @@ void MonitorarRetorno()
    // recuo, 200 pts abaixo da abertura.
    if((ultimo - g_retornoPreco) * g_retornoDir >= 0)
      {
-      if(g_retornoDir > 0)
-         trade.Buy(volume, _Symbol, 0, 0, 0, COMENT("retorno"));
-      else
-         trade.Sell(volume, _Symbol, 0, 0, 0, COMENT("retorno"));
+      EntrarRetornoMercado(volume);
       return;
      }
-   bool ok = (g_retornoDir > 0)
-             ? trade.BuyStop(volume, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, COMENT("retorno"))
-             : trade.SellStop(volume, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, COMENT("retorno"));
+   bool ok = ColocarStopRetorno(volume);
    uint rc = trade.ResultRetcode();
    if(!ok || (rc != TRADE_RETCODE_DONE && rc != TRADE_RETCODE_PLACED))
      {
@@ -1062,6 +1055,52 @@ void MonitorarRetorno()
       if(DETALHES) PrintFormat("Ordem stop na abertura recusada (código %u): o robô entra quando o último negócio voltar a %.0f",
                   rc, g_retornoPreco);
      }
+  }
+
+// Entrada já levando o stop: executada, a posição nasce com o stop no servidor
+// da corretora, que vale mesmo se o PC ou a internet do aluno cair logo depois
+// (10/11: posição de aluno ficou das 11:40 às 15:15 sem stop, sem conexão).
+// Se a corretora recusar o stop junto com a ordem, o robô entra sem ele, coloca
+// o stop logo depois da execução (como antes) e não tenta mais nesta sessão.
+bool g_slNaOrdem = true;
+
+bool EntrarRetornoMercado(const double vol)
+  {
+   double sl = g_slNaOrdem ? g_stopPlanejado : 0.0;
+   bool ok = (g_retornoDir > 0) ? trade.Buy(vol, _Symbol, 0, sl, 0, COMENT("retorno"))
+                                : trade.Sell(vol, _Symbol, 0, sl, 0, COMENT("retorno"));
+   if(ok || sl == 0)
+      return ok;
+   ok = (g_retornoDir > 0) ? trade.Buy(vol, _Symbol, 0, 0, 0, COMENT("retorno"))
+                           : trade.Sell(vol, _Symbol, 0, 0, 0, COMENT("retorno"));
+   if(ok)
+      AvisarStopNaOrdemRecusado();
+   return ok;
+  }
+
+bool ColocarStopRetorno(const double vol)
+  {
+   double sl = g_slNaOrdem ? g_stopPlanejado : 0.0;
+   bool ok = (g_retornoDir > 0)
+             ? trade.BuyStop(vol, g_retornoPreco, _Symbol, sl, 0, TipoValidade(), 0, COMENT("retorno"))
+             : trade.SellStop(vol, g_retornoPreco, _Symbol, sl, 0, TipoValidade(), 0, COMENT("retorno"));
+   uint rc = trade.ResultRetcode();
+   if((ok && (rc == TRADE_RETCODE_DONE || rc == TRADE_RETCODE_PLACED)) || sl == 0)
+      return ok;
+   ok = (g_retornoDir > 0)
+        ? trade.BuyStop(vol, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, COMENT("retorno"))
+        : trade.SellStop(vol, g_retornoPreco, _Symbol, 0, 0, TipoValidade(), 0, COMENT("retorno"));
+   rc = trade.ResultRetcode();
+   if(ok && (rc == TRADE_RETCODE_DONE || rc == TRADE_RETCODE_PLACED))
+      AvisarStopNaOrdemRecusado();
+   return ok;
+  }
+
+void AvisarStopNaOrdemRecusado()
+  {
+   g_slNaOrdem = false;
+   Print(NOME_ROBO + ": a corretora não aceitou o stop junto com a ordem de entrada. "
+         "O robô coloca o stop logo depois da execução.");
   }
 
 //+------------------------------------------------------------------+
@@ -1085,6 +1124,7 @@ void GerenciarPosicao(int minutoAgora)
       g_tCruzou = 0;
       g_falhasParcial = 0;
       g_tSumiuParcial = 0;
+      g_tSemStop = 0;
       CancelarParcial();   // sem posição, uma parcial pendente abriria posição contrária
       g_alvoColocado = false;
       g_falhasAlvo = 0;
@@ -1182,13 +1222,18 @@ void GerenciarPosicao(int minutoAgora)
    bool alvoNoServ   = !alvoLimitado && (!usaParcial || g_parcialFeita);
 
    // Stop (e alvo, se for o caso) entram logo após a execução.
-   if(sl == 0 && tp == 0)
+   if(sl == 0)
      {
+      // Posição do robô sem stop: tenta colocar a cada passagem (tick ou timer
+      // de 5 s); se em 10 s com conexão não conseguir, zera. Nunca fica aberta
+      // sem stop esperando o mercado.
+      if(g_tSemStop == 0)
+         g_tSemStop = TimeLocal();
       if(g_stopPlanejado <= 0)
         {
-         if(!g_avisouSemStop)
-            Print("Posição sem stop e sem stop planejado. Coloque o stop manualmente.");
-         g_avisouSemStop = true;
+         Print(NOME_ROBO + ": posição do robô sem stop e sem stop conhecido. Zerando por segurança.");
+         g_motivoSaida = "seguranca";
+         trade.PositionClose(ticket);
          return;
         }
       if((bid - g_stopPlanejado) * dir <= 0)
@@ -1203,17 +1248,34 @@ void GerenciarPosicao(int minutoAgora)
          trade.PositionClose(ticket);
          return;
         }
-      bool ok = trade.PositionModify(ticket, g_stopPlanejado, alvoNoServ ? alvo : 0.0) &&
+      bool conectado = (TerminalInfoInteger(TERMINAL_CONNECTED) != 0);
+      bool ok = conectado && trade.PositionModify(ticket, g_stopPlanejado, alvoNoServ ? alvo : 0.0) &&
                 trade.ResultRetcode() == TRADE_RETCODE_DONE;
-      if(!ok && ++g_falhasStop >= 5)
+      if(ok)
         {
-         // Posição sem stop não fica aberta.
-         PrintFormat("Não consegui colocar o stop (preço de entrada %.2f). Zerando por segurança.", preco);
+         if(g_falhasStop > 0)
+            PrintFormat("%s: stop colocado em %.0f depois de %d tentativas.", NOME_ROBO, g_stopPlanejado, g_falhasStop);
+         g_tSemStop = 0;
+         g_falhasStop = 0;
+         return;
+        }
+      g_falhasStop++;
+      int semStopSeg = (int)(TimeLocal() - g_tSemStop);
+      if(TimeLocal() - g_tAvisoSemStop >= 5)
+        {
+         PrintFormat("%s: stop não colocado (%s), tentando de novo. Posição sem stop há %d s.", NOME_ROBO,
+                     conectado ? StringFormat("código %u", trade.ResultRetcode()) : "sem conexão com a corretora", semStopSeg);
+         g_tAvisoSemStop = TimeLocal();
+        }
+      if(conectado && semStopSeg >= 10)
+        {
+         PrintFormat("%s: posição sem stop há %d s. Zerando por segurança.", NOME_ROBO, semStopSeg);
          g_motivoSaida = "seguranca";
          trade.PositionClose(ticket);
         }
       return;
      }
+   g_tSemStop = 0;
 
    // Parcial como ordem limitada no servidor, colocada logo depois do stop:
    // executa no preço da parcial (a mercado, o preço vinha 15 a 45 pts pior).
@@ -1737,6 +1799,24 @@ bool LicencaPermiteEntrada()
 #endif
   }
 
+// Sem negócio chegando (mercado parado ou conexão instável) o OnTick não roda:
+// o timer cuida da posição do mesmo jeito (stop, saída por horário) e informa
+// ao painel se há posição do robô e se ela tem stop. No testador não precisa.
+void GerenciarPeloTimer()
+  {
+   if(MQLInfoInteger(MQL_TESTER))
+      return;
+   GerenciarPosicao(MinutoDoDia(TimeCurrent()));
+   ulong t; long tipo; double vol, preco, sl, tp;
+   if(BuscarPosicao(t, tipo, vol, preco, sl, tp) && PositionSelectByTicket(t))
+     {
+      datetime aberta = (datetime)PositionGetInteger(POSITION_TIME);
+      LicOnline_DefinirPosicao(vol, sl > 0, TimeGMT() - (TimeCurrent() - aberta));
+     }
+   else
+      LicOnline_DefinirPosicao(0, true, 0);
+  }
+
 // Chave offline válida para esta conta e no prazo. Conferida a cada uso porque,
 // logo que o MT5 abre (ou a VPS reinicia), a conta ainda pode não estar conectada.
 bool ChaveOffline(int &contratos)
@@ -1805,6 +1885,7 @@ string QuebrarLinhas(string texto, int largura)
 
 void OnTimer()
   {
+   GerenciarPeloTimer();
    LicOnline_Timer();
    Comando_Atualizar();
    MostrarLicenca();
@@ -1812,6 +1893,7 @@ void OnTimer()
 #else
 void OnTimer()
   {
+   GerenciarPeloTimer();
    LicOnline_Timer();   // só o movimento do dia para o painel
   }
 #endif
