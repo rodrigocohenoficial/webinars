@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.54"
+#property version   "1.55"
 
 #include <Trade\Trade.mqh>
 
@@ -85,6 +85,19 @@ enum ENUM_UNIDADE_RECUO
    RECUO_FVG        = 2     // Até a máx/mín do candle anterior ao sinal (fecha o FVG)
   };
 
+// Saídas prontas para otimizar no testador (o texto "Várias saídas" não é otimizável).
+enum ENUM_SAIDAS_LISTA
+  {
+   SAIDAS_TEXTO        = 0,   // Usar o texto de "Várias saídas"
+   SAIDAS_60_80        = 1,   // 60,80
+   SAIDAS_50_70        = 2,   // 50,70
+   SAIDAS_50_60_70     = 3,   // 50,60,70
+   SAIDAS_50_70_90     = 4,   // 50,70,90
+   SAIDAS_50_60_70_80  = 5,   // 50,60,70,80
+   SAIDAS_50_70_90_110 = 6,   // 50,70,90,110
+   SAIDAS_50_A_100     = 7    // 50,60,70,80,90,100
+  };
+
 enum ENUM_FILTRO_TENDENCIA
   {
    TEND_DESLIGADO    = 0,   // Desligado (qualquer direção)
@@ -141,6 +154,7 @@ PARAM bool                 InpZeroAposParcial = true;             // Stop no 0x0
 PARAM double               InpAlvoPts         = 80;               // Alvo final (pontos)
 PARAM bool                 InpAlvoLimitado    = true;             // Alvo final como ordem limitada no livro (sai no preço do alvo)
 PARAM string               InpSaidas          = "";               // Várias saídas: pontos separados por vírgula, ex.: 30,50,80,150 (vazio = parcial e alvo acima)
+PARAM ENUM_SAIDAS_LISTA    InpSaidasLista     = SAIDAS_TEXTO;     // Várias saídas: lista pronta (para otimizar; "texto" usa o campo acima)
 PARAM bool                 InpStopEscada      = false;            // Várias saídas: a cada saída o stop sobe (1ª: 0x0; depois: alvo da saída anterior)
 
 #ifndef VERSAO_ALUNO
@@ -381,7 +395,7 @@ int OnInit()
       Print("Contratos, alvo ou folga do stop inválidos.");
       return INIT_PARAMETERS_INCORRECT;
      }
-   if(!LerSaidas(InpSaidas))
+   if(!LerSaidas(InpSaidasLista == SAIDAS_TEXTO ? InpSaidas : TextoDaLista(InpSaidasLista)))
       return INIT_PARAMETERS_INCORRECT;
    if(g_mN > 0)
      {
@@ -429,9 +443,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.54)");
+   Print(NOME_ROBO + " carregado (versão interna 1.55)");
 #else
-   Print(NOME_ROBO + " v1.54 carregado");
+   Print(NOME_ROBO + " v1.55 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -1545,6 +1559,21 @@ void GerenciarPosicao(int minutoAgora)
 double AlvoFinalPts()
   {
    return (g_mN > 0) ? g_mAlvos[g_mN - 1] : InpAlvoPts;
+  }
+
+string TextoDaLista(ENUM_SAIDAS_LISTA lista)
+  {
+   switch(lista)
+     {
+      case SAIDAS_60_80:        return "60,80";
+      case SAIDAS_50_70:        return "50,70";
+      case SAIDAS_50_60_70:     return "50,60,70";
+      case SAIDAS_50_70_90:     return "50,70,90";
+      case SAIDAS_50_60_70_80:  return "50,60,70,80";
+      case SAIDAS_50_70_90_110: return "50,70,90,110";
+      case SAIDAS_50_A_100:     return "50,60,70,80,90,100";
+      default:                  return "";
+     }
   }
 
 // "30,50,80,150" -> 4 saídas. Vazio: parcial e alvo de sempre.
