@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.53"
+#property version   "1.54"
 
 #include <Trade\Trade.mqh>
 
@@ -140,6 +140,8 @@ PARAM double               InpParcialPct      = 50;               // Tamanho da 
 PARAM bool                 InpZeroAposParcial = true;             // Stop no 0x0 ao bater a parcial
 PARAM double               InpAlvoPts         = 80;               // Alvo final (pontos)
 PARAM bool                 InpAlvoLimitado    = true;             // Alvo final como ordem limitada no livro (sai no preço do alvo)
+PARAM string               InpSaidas          = "";               // Várias saídas: pontos separados por vírgula, ex.: 30,50,80,150 (vazio = parcial e alvo acima)
+PARAM bool                 InpStopEscada      = false;            // Várias saídas: a cada saída o stop sobe (1ª: 0x0; depois: alvo da saída anterior)
 
 #ifndef VERSAO_ALUNO
 input group "Horários"
@@ -286,6 +288,15 @@ ulong    g_ticketAlvo    = 0;          // ordem limitada do alvo final, pendente
 bool     g_alvoColocado  = false;      // o alvo limitado desta posição já foi colocado
 int      g_falhasAlvo    = 0;          // recusas da ordem limitada do alvo nesta posição
 datetime g_diaEncerradoAvisado = 0;
+// Várias saídas (v1.54): uma ordem limitada por saída, todas do mesmo tamanho.
+// Somadas dão a posição inteira: se todas executarem, a posição só zera.
+#define MAX_SAIDAS 8
+int      g_mN = 0;                     // 0 = parcial e alvo (como até a v1.53)
+double   g_mAlvos[MAX_SAIDAS];         // pontos de cada saída, em ordem crescente
+ulong    g_mTicket[MAX_SAIDAS];        // ordem limitada de cada saída
+int      g_mFalhas[MAX_SAIDAS];        // recusas da ordem de cada saída
+double   g_mVolAntes = 0;              // saída a mercado enviada pelo robô, esperando a posição refletir
+datetime g_mTEnvio   = 0;
 datetime g_tSumiuParcial = 0;          // quando a parcial limitada saiu das pendentes sem aparecer no histórico    // dia em que já avisou que a meta ou o limite em R$ foi atingido
 
 //+------------------------------------------------------------------+
@@ -370,7 +381,17 @@ int OnInit()
       Print("Contratos, alvo ou folga do stop inválidos.");
       return INIT_PARAMETERS_INCORRECT;
      }
-   if(MathMod(AjustarVolume(g_contratos), 2) != 0)
+   if(!LerSaidas(InpSaidas))
+      return INIT_PARAMETERS_INCORRECT;
+   if(g_mN > 0)
+     {
+      if(MathMod(AjustarVolume(g_contratos), g_mN) != 0)
+        {
+         PrintFormat("Com %d saídas, os contratos precisam ser múltiplos de %d.", g_mN, g_mN);
+         return INIT_PARAMETERS_INCORRECT;
+        }
+     }
+   else if(MathMod(AjustarVolume(g_contratos), 2) != 0)
      {
       Print("Contratos precisam ser pares.");
       return INIT_PARAMETERS_INCORRECT;
@@ -408,9 +429,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.53)");
+   Print(NOME_ROBO + " carregado (versão interna 1.54)");
 #else
-   Print(NOME_ROBO + " v1.53 carregado");
+   Print(NOME_ROBO + " v1.54 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -1142,6 +1163,7 @@ void GerenciarPosicao(int minutoAgora)
       g_alvoColocado = false;
       g_falhasAlvo = 0;
       CancelarAlvo();      // idem para o alvo limitado
+      CancelarSaidas();    // idem para as várias saídas
       return;
      }
 
@@ -1171,6 +1193,7 @@ void GerenciarPosicao(int minutoAgora)
             g_alvoColocado = false;
             g_falhasAlvo = 0;
             CancelarAlvo();
+            CancelarSaidas();
            }
          g_posId = id;
          g_posDir = dir;
@@ -1205,6 +1228,7 @@ void GerenciarPosicao(int minutoAgora)
    if(minutoAgora >= g_minZerar)
      {
       g_motivoSaida = "zerar";
+      CancelarSaidas();
       trade.PositionClose(ticket);
       return;
      }
@@ -1217,22 +1241,23 @@ void GerenciarPosicao(int minutoAgora)
       g_motivoSaida = "virou_dia";
       PrintFormat("Posição aberta em %s atravessou a noite. Zerando.",
                   TimeToString((datetime)PositionGetInteger(POSITION_TIME)));
+      CancelarSaidas();
       trade.PositionClose(ticket);
       return;
      }
 
    if(preco <= 0)
       return;
-   double alvo = ArredondarPreco(preco + dir * InpAlvoPts);
+   double alvo = ArredondarPreco(preco + dir * AlvoFinalPts());
    // Com parcial, o alvo do servidor só entra depois dela. Com os dois no
    // servidor, um salto de preço executava o alvo e depois a parcial limitada,
    // que abria uma posição contrária (1.373 vezes no teste da v1.33).
-   bool usaParcial  = (InpParcialPts > 0 && InpParcialPts < InpAlvoPts);
+   bool usaParcial  = (g_mN == 0 && InpParcialPts > 0 && InpParcialPts < InpAlvoPts);
    // Alvo limitado: fica no livro como ordem limitada e não vai para o T/P da
    // posição. Pelo T/P, a XP manda ordem a mercado quando o preço toca o alvo e,
    // na conta real (23/10), a saída veio em média 9 pts pior que o alvo.
-   bool alvoLimitado = InpAlvoLimitado && g_falhasAlvo < 3;
-   bool alvoNoServ   = !alvoLimitado && (!usaParcial || g_parcialFeita);
+   bool alvoLimitado = (g_mN == 0 && InpAlvoLimitado && g_falhasAlvo < 3);
+   bool alvoNoServ   = (g_mN == 0 && !alvoLimitado && (!usaParcial || g_parcialFeita));
 
    // Stop (e alvo, se for o caso) entram logo após a execução.
    if(sl == 0)
@@ -1289,6 +1314,12 @@ void GerenciarPosicao(int minutoAgora)
       return;
      }
    g_tSemStop = 0;
+
+   if(g_mN > 0)
+     {
+      GerenciarSaidas(ticket, tipo, dir, volume, preco, sl, bid, volCheio);
+      return;
+     }
 
    // Parcial como ordem limitada no servidor, colocada logo depois do stop:
    // executa no preço da parcial (a mercado, o preço vinha 15 a 45 pts pior).
@@ -1509,6 +1540,190 @@ void GerenciarPosicao(int minutoAgora)
   }
 
 //+------------------------------------------------------------------+
+//| Várias saídas (v1.54, só na versão completa)                     |
+//+------------------------------------------------------------------+
+double AlvoFinalPts()
+  {
+   return (g_mN > 0) ? g_mAlvos[g_mN - 1] : InpAlvoPts;
+  }
+
+// "30,50,80,150" -> 4 saídas. Vazio: parcial e alvo de sempre.
+bool LerSaidas(string texto)
+  {
+   g_mN = 0;
+   ArrayInitialize(g_mTicket, 0);
+   ArrayInitialize(g_mFalhas, 0);
+   StringReplace(texto, " ", "");
+   if(texto == "")
+      return true;
+   string partes[];
+   int n = StringSplit(texto, ',', partes);
+   if(n < 1 || n > MAX_SAIDAS)
+     {
+      PrintFormat("Saídas: informe de 1 a %d valores em pontos, separados por vírgula (ex.: 30,50,80,150).", MAX_SAIDAS);
+      return false;
+     }
+   double anterior = 0;
+   for(int i = 0; i < n; i++)
+     {
+      double v = StringToDouble(partes[i]);
+      if(v <= anterior)
+        {
+         Print("Saídas: use pontos maiores que zero e em ordem crescente (ex.: 30,50,80,150).");
+         return false;
+        }
+      g_mAlvos[i] = v;
+      anterior = v;
+     }
+   g_mN = n;
+   PrintFormat("%d saídas em %s pontos; stop %s.", g_mN, texto,
+               InpStopEscada ? "em escada" : (InpZeroAposParcial ? "no 0x0 depois da 1ª saída" : "fixo"));
+   return true;
+  }
+
+bool EhOrdemDeSaida(ulong t)
+  {
+   for(int i = 0; i < g_mN; i++)
+      if(g_mTicket[i] == t)
+         return true;
+   return false;
+  }
+
+void CancelarSaidas()
+  {
+   for(int i = 0; i < g_mN; i++)
+     {
+      if(g_mTicket[i] != 0 && OrderSelect(g_mTicket[i]))
+         trade.OrderDelete(g_mTicket[i]);
+      g_mTicket[i] = 0;
+      g_mFalhas[i] = 0;
+     }
+   g_mVolAntes = 0;
+   g_mTEnvio = 0;
+  }
+
+// Zera a posição pelo robô. Antes cancela as saídas no livro: com a posição
+// zerada, uma saída que executasse depois abriria posição contrária (netting).
+void ZerarComSaidas(ulong ticket, string motivo)
+  {
+   g_motivoSaida = motivo;
+   CancelarSaidas();
+   trade.PositionClose(ticket);
+  }
+
+// Chamada com a posição já protegida pelo stop do servidor.
+void GerenciarSaidas(ulong ticket, long tipo, int dir, double volume, double preco, double sl, double bid, double volCheio)
+  {
+   double volPerna = AjustarVolume(volCheio / g_mN);
+   if(volPerna <= 0)
+      return;
+
+   // Saída a mercado enviada pelo robô e ainda não refletida: não manda outra.
+   if(g_mVolAntes > 0)
+     {
+      if(volume >= g_mVolAntes && TimeCurrent() - g_mTEnvio < 10)
+         return;
+      g_mVolAntes = 0;
+     }
+
+   // As saídas executam em ordem (alvos crescentes): quantas já saíram, pela posição.
+   int feitas = (int)MathRound((volCheio - volume) / volPerna);
+   feitas = MathMax(0, MathMin(feitas, g_mN - 1));
+
+   // 1) Uma ordem limitada para cada saída que falta.
+   for(int i = feitas; i < g_mN; i++)
+     {
+      double precoAlvo = ArredondarPreco(preco + dir * g_mAlvos[i]);
+      if(g_mTicket[i] != 0)
+        {
+         if(OrderSelect(g_mTicket[i]))
+            continue;                                   // no livro
+         long estado = HistoryOrderSelect(g_mTicket[i]) ? HistoryOrderGetInteger(g_mTicket[i], ORDER_STATE) : -1;
+         if(estado != ORDER_STATE_CANCELED && estado != ORDER_STATE_REJECTED && estado != ORDER_STATE_EXPIRED)
+            continue;                                   // executou, ou a execução está chegando
+         g_mTicket[i] = 0;                              // saiu do livro sem executar: coloca de novo
+        }
+      if(g_mFalhas[i] >= 3 || (precoAlvo - bid) * dir <= 0)
+         continue;                                      // o robô faz essa saída a mercado (abaixo)
+      bool ok = (dir > 0) ? trade.SellLimit(volPerna, precoAlvo, _Symbol, 0, 0, TipoValidade(), 0, COMENT("saida"))
+                          : trade.BuyLimit(volPerna, precoAlvo, _Symbol, 0, 0, TipoValidade(), 0, COMENT("saida"));
+      uint rc = trade.ResultRetcode();
+      if(ok && (rc == TRADE_RETCODE_DONE || rc == TRADE_RETCODE_PLACED) && trade.ResultOrder() > 0)
+        {
+         g_mTicket[i] = trade.ResultOrder();
+         if(DETALHES) PrintFormat("Saída %d de %d limitada: %s %.0f a %.0f", i + 1, g_mN, dir > 0 ? "venda" : "compra", volPerna, precoAlvo);
+        }
+      else if(++g_mFalhas[i] >= 3)
+         if(DETALHES) PrintFormat("Ordem limitada da saída %d recusada (código %u). O robô faz essa saída a mercado.", i + 1, rc);
+     }
+
+   // 2) Saída sem ordem no livro e com o preço já no alvo: o robô sai a mercado.
+   //    Com a ordem no livro, nunca: as duas juntas virariam a mão.
+   double alvoProx = ArredondarPreco(preco + dir * g_mAlvos[feitas]);
+   if(g_mTicket[feitas] == 0 && (bid - alvoProx) * dir >= 0)
+     {
+      if(feitas == g_mN - 1 || volume <= volPerna)
+        {
+         ZerarComSaidas(ticket, "alvo");
+         return;
+        }
+      if(DETALHES) PrintFormat("Saída %d de %d a mercado (último %.0f, alvo %.0f)", feitas + 1, g_mN, bid, alvoProx);
+      if(FecharParcial(ticket, tipo, volPerna))
+        {
+         g_mVolAntes = volume;
+         g_mTEnvio   = TimeCurrent();
+        }
+      return;
+     }
+
+   // 3) Stop depois das saídas: 0x0 depois da 1ª; em escada, o alvo da saída anterior.
+   double stopDesejado = sl;
+   if(feitas >= 1)
+     {
+      if(InpStopEscada && feitas >= 2)
+         stopDesejado = ArredondarPreco(preco + dir * g_mAlvos[feitas - 2]);
+      else if(InpStopEscada || InpZeroAposParcial)
+         stopDesejado = ArredondarPreco(preco);
+     }
+   string motivoStop = (feitas == 0) ? "stop" : (feitas >= 2 && InpStopEscada) ? "escada" :
+                       ((InpStopEscada || InpZeroAposParcial) ? "0x0" : "stop");
+   if((stopDesejado - sl) * dir > g_tick / 2)          // o stop só sobe
+     {
+      if((bid - stopDesejado) * dir <= 0)
+        {
+         ZerarComSaidas(ticket, motivoStop);           // o preço já passou do novo stop
+         return;
+        }
+      if(trade.PositionModify(ticket, stopDesejado, 0) && trade.ResultRetcode() == TRADE_RETCODE_DONE)
+         if(DETALHES) PrintFormat("Depois da saída %d: stop %.0f", feitas, stopDesejado);
+      sl = stopDesejado;                               // até o servidor aceitar, o robô usa este nível
+     }
+
+   // 4) Stop do servidor com o robô de reserva (mesma regra das duas saídas).
+   bool   testador   = (bool)MQLInfoInteger(MQL_TESTER);
+   double precoSaida = bid;
+   if(testador)
+     {
+      double livro = (dir > 0) ? SymbolInfoDouble(_Symbol, SYMBOL_BID) : SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+      if(livro > 0)
+         precoSaida = livro;
+     }
+   if(sl > 0 && (precoSaida - sl) * dir <= 0)
+     {
+      if(g_tCruzou == 0)
+         g_tCruzou = TimeCurrent();
+      if(testador || TimeCurrent() - g_tCruzou >= 3)
+        {
+         if(!testador || InpRegistrarDecisoes)
+            if(DETALHES) PrintFormat("Saída pelo robô: %s, preço %.0f, stop %.0f", motivoStop, precoSaida, sl);
+         ZerarComSaidas(ticket, motivoStop);
+        }
+      return;
+     }
+   g_tCruzou = 0;
+  }
+
+//+------------------------------------------------------------------+
 bool FecharParcial(ulong ticket, long tipo, double vol)
   {
    if(g_hedging)
@@ -1630,7 +1845,8 @@ void RegistrarOperacao(long id)
      {
       // O stop/alvo da posição foi executado pelo servidor antes do robô: o motivo sai do preço.
       double resultado = (saida - entrada) * dir;
-      motivo = (MathAbs(resultado) < g_tick / 2) ? "0x0" : (resultado >= InpAlvoPts - g_tick / 2) ? "alvo" : "stop";
+      motivo = (MathAbs(resultado) < g_tick / 2) ? "0x0" : (resultado >= AlvoFinalPts() - g_tick / 2) ? "alvo" :
+               (g_mN > 0 && resultado > 0) ? "escada" : "stop";
      }
 
    if(motivo == "0x0" && g_reRestantes > 0 && g_posStop > 0)
@@ -2068,7 +2284,7 @@ void CancelarPendentes()
    for(int i = OrdersTotal() - 1; i >= 0; i--)
      {
       ulong t = OrderGetTicket(i);
-      if(t == 0 || t == g_ticketParcial || t == g_ticketAlvo || OrderGetString(ORDER_SYMBOL) != _Symbol)
+      if(t == 0 || t == g_ticketParcial || t == g_ticketAlvo || EhOrdemDeSaida(t) || OrderGetString(ORDER_SYMBOL) != _Symbol)
          continue;
       if((ulong)OrderGetInteger(ORDER_MAGIC) == InpMagic)
          trade.OrderDelete(t);

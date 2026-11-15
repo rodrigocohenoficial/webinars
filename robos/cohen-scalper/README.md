@@ -130,6 +130,16 @@ Alvo menor ganhou em todas as parciais, nos dois períodos. Padrão desde a v1.2
 | Loss do dia | 500 pts | Preço médio. Custa ~5% contra 1000 e cabe no bolso do varejo |
 | Reentradas | 1 | Depois de sair no 0x0. 0 desliga |
 
+## Várias saídas e stop em escada (v1.54, só na versão completa)
+
+- `Várias saídas`: pontos separados por vírgula (ex.: `30,50,80,150`). Cada saída é uma ordem limitada do
+  mesmo tamanho; os contratos precisam ser múltiplos do número de saídas. Vazio = parcial e alvo de sempre.
+- `Stop em escada`: depois da 1ª saída o stop vai para o 0x0; depois da 2ª, para o alvo da 1ª; e assim por diante.
+- Laboratório (barras de 1 min, 2022–nov/2026, por contrato, hipotético): atual 60/80 R$ 24,5 mil e queda
+  R$ 711; `30,50,80,150` com escada R$ 31,0 mil e R$ 369; `30,45,60,80,100,150` com escada R$ 38,1 mil e
+  R$ 351. Precisa ser confirmado no testador com o `WIN_GRID` (negócios reais 20/02–nov/2026).
+- No CSV, o motivo `escada` é a saída pelo stop acima do 0x0.
+
 ## WIN x WDO
 
 **A regra não tem edge no WDO.** Teste v1.28 em `WDO$N` (terminal PRD, ticks reais, 2022–fev/2026), parâmetros convertidos pelo mesmo risco em R$ por contrato (1 pt WDO = 50 pts WIN): parcial 1,0, alvo 1,5, candle até 20, meta 30, loss 10.
