@@ -25,7 +25,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.52"
+#property version   "1.53"
 
 #include <Trade\Trade.mqh>
 
@@ -408,9 +408,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.52)");
+   Print(NOME_ROBO + " carregado (versão interna 1.53)");
 #else
-   Print(NOME_ROBO + " v1.52 carregado");
+   Print(NOME_ROBO + " v1.53 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -488,6 +488,19 @@ void AbrirArquivo()
       return;
    bool testador = (bool)MQLInfoInteger(MQL_TESTER);
    g_nomeArquivo = "CohenScalper_" + _Symbol + (testador ? "_teste" : "") + ".csv";
+   if(testador)
+     {
+      // Cada teste grava num arquivo novo, sem apagar os anteriores: em 20/10/2026
+      // um teste curto gravou por cima da lista completa da v1.34 (ticks reais de
+      // 2022 a 2026) e ela se perdeu. Nome: ..._teste_<início do teste>[_n].csv
+      MqlDateTime t;
+      TimeToStruct(TimeCurrent(), t);
+      string base = StringFormat("CohenScalper_%s_teste_%04d%02d%02d", _Symbol, t.year, t.mon, t.day);
+      g_nomeArquivo = base + ".csv";
+      for(int n = 2; FileIsExist(g_nomeArquivo, FILE_COMMON) && n < 1000; n++)
+         g_nomeArquivo = base + "_" + IntegerToString(n) + ".csv";
+      PrintFormat("Operações deste teste em Common\\Files\\%s", g_nomeArquivo);
+     }
    int modo = FILE_CSV | FILE_ANSI | FILE_COMMON | FILE_WRITE | (testador ? 0 : FILE_READ);
    g_arquivo = FileOpen(g_nomeArquivo, modo, ';');
    if(g_arquivo == INVALID_HANDLE)
