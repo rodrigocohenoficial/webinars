@@ -34,8 +34,21 @@ No dia do vencimento, depois do pregao, abra o grafico do novo contrato
 (ex.: WINZ26 > WING27), arraste o robo de novo e feche
 o grafico antigo. No contrato vencido o robo nao opera.
 
+AJUSTES (aba Parametros, ao arrastar o robo)
+- Contratos: numero par (2, 4, 6...).
+- Meta de ganho / Limite de perda do dia (R$): total da conta. 0 = desligado.
+- Parcial e Alvo final (pontos): padrao 60 e 80. Alternativa testada: 50 e 70
+  (ganha menos por operacao, acerta mais e teve queda menor nos testes).
+- Stop maximo (pontos): padrao 0 = stop alem do candle sinal, como sempre.
+  Com 300 ou 400, o stop nunca passa disso. Use 0 ou 100 ou mais.
+- Tamanho maximo do candle sinal (pontos): padrao 1000. Candle maior que
+  isso nao entra. 0 = sem limite.
+- Ultima entrada (HHMM): padrao 1300 (13h). Pode ir ate 1725; o robo zera
+  tudo as 17h30. Nos testes, ate 13h foi mais seguro.
+Mudou e nao gostou? Arraste o robo de novo e clique em "Redefinir".
+
 FUNCIONAMENTO
-- Entra das 9h15 as 13h. Zera tudo ate as 17h30.
+- Entra das 9h15 ate a ultima entrada (padrao 13h). Zera tudo ate as 17h30.
 - O MetaTrader precisa ficar aberto e conectado no horario do pregao
   (computador ligado ou VPS da MetaQuotes).
 - O resultado simulado considera corretagem zero no mini indice.

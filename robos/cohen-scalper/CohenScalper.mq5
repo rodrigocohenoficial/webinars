@@ -5,27 +5,30 @@
 //|  v1 - para backtest e conta demo.                                |
 //+------------------------------------------------------------------+
 // Versão do aluno: compile o arquivo do aluno, que define VERSAO_ALUNO e o nome
-// do robô antes de incluir este. Nela a estratégia fica fixa (só a chave e os
-// contratos são editáveis) e os logs, os comentários das ordens e a descrição
-// não mostram a regra.
+// do robô antes de incluir este. Nela a regra de entrada fica fixa; o aluno
+// ajusta só contratos, meta/limite do dia em R$, parcial, alvo, stop máximo,
+// tamanho máximo do candle e última entrada (AJUSTE). Os logs, os comentários
+// das ordens e a descrição não mostram a regra.
 #ifdef VERSAO_ALUNO
    #ifndef NOME_ROBO
       #define NOME_ROBO "Robo"
    #endif
    #define PARAM     const
+   #define AJUSTE    input     // o que o aluno pode ajustar
    #define DETALHES  false
    #define COMENT(x) NOME_ROBO
    #property copyright   "Rodrigo Cohen - Trader Nation"
    #property description "Robô de day trade para o mini índice (WIN), gráfico de 5 minutos."
 #else
    #define PARAM     input
+   #define AJUSTE    input
    #define DETALHES  true
    #define COMENT(x) x
    #define NOME_ROBO "CohenScalper"
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.55"
+#property version   "1.56"
 
 #include <Trade\Trade.mqh>
 
@@ -40,7 +43,7 @@
 // segredo fica no CohenLicencaSegredo.mqh, fora do git.
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "1.9"
+#define LIC_VERSAO "2.0"
 #include "CohenLicencaOnline.mqh"
 
 // Liga e desliga pelo Trader Nation Terminal (app de mesa), pela pasta comum
@@ -55,7 +58,7 @@
 #define LIC_SO_REPORTE
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "1.9"
+#define LIC_VERSAO "2.0"
 #include "CohenLicencaOnline.mqh"
 #endif
 
@@ -125,7 +128,7 @@ PARAM ENUM_REF_FECHAMENTO  InpRefFechamento = REF_MAXIMA_MINIMA;  // Referência
 PARAM ENUM_FORCA           InpForca         = FORCA_CORPO_OU_PONTA; // Força do candle sinal
 PARAM double               InpCorpoMinPct   = 50.0;               // Corpo maior que X% do candle (50 = corpo > pavios)
 PARAM double               InpPontaPct      = 33.0;               // Fechou na ponta: no máximo X% do candle entre o fechamento e a máx (compra) / mín (venda)
-PARAM double               InpTamanhoMax    = 1000;               // Tamanho máximo do candle sinal (pontos)
+AJUSTE double              InpTamanhoMax    = 1000;               // Tamanho máximo do candle sinal (pontos, 0 = sem limite)
 PARAM double               InpTamanhoMin    = 0;                  // Tamanho mínimo do candle sinal (pontos, 0 = sem filtro)
 
 #ifndef VERSAO_ALUNO
@@ -148,10 +151,11 @@ PARAM int                  InpTendJanela    = 60;                 // Candles ana
 input group "Stop e alvos"
 #endif
 PARAM int                  InpStopFolgaTicks  = 1;                // Stop: ticks além da mín/máx do candle sinal
-PARAM double               InpParcialPts      = 60;               // Parcial (pontos, 0 = sem parcial)
+AJUSTE double              InpParcialPts      = 60;               // Parcial (pontos, 0 = sem parcial)
 PARAM double               InpParcialPct      = 50;               // Tamanho da parcial (% da posição)
 PARAM bool                 InpZeroAposParcial = true;             // Stop no 0x0 ao bater a parcial
-PARAM double               InpAlvoPts         = 80;               // Alvo final (pontos)
+AJUSTE double              InpAlvoPts         = 80;               // Alvo final (pontos)
+AJUSTE double              InpStopMaxPts      = 0;                // Stop máximo (pontos; 0 = stop no candle sinal, sem limite)
 PARAM bool                 InpAlvoLimitado    = true;             // Alvo final como ordem limitada no livro (sai no preço do alvo)
 PARAM string               InpSaidas          = "";               // Várias saídas: pontos separados por vírgula, ex.: 30,50,80,150 (vazio = parcial e alvo acima)
 PARAM ENUM_SAIDAS_LISTA    InpSaidasLista     = SAIDAS_TEXTO;     // Várias saídas: lista pronta (para otimizar; "texto" usa o campo acima)
@@ -161,7 +165,7 @@ PARAM bool                 InpStopEscada      = false;            // Várias sa�
 input group "Horários"
 #endif
 PARAM string               InpInicio        = "09:15";            // Início das entradas
-PARAM int                  InpUltimaEntrada = 1300;               // Última entrada (HHMM, ex.: 1300 = 13:00; otimizável)
+AJUSTE int                 InpUltimaEntrada = 1300;               // Última entrada (HHMM, ex.: 1300 = 13:00)
 PARAM string               InpZerar         = "17:30";            // Zera posição
 PARAM bool                 InpBloquearHorarios = false;           // Não entrar nos horários abaixo
 PARAM string               InpHorariosBloq  = "09:30,10:00,10:30,11:00,11:30"; // Horários sem entrada
@@ -236,6 +240,7 @@ datetime g_licValidade   = 0;     // último dia de uso (00:00)
 int      g_licMax        = 0;
 datetime g_ultimoCandle  = 0;
 double   g_stopPlanejado = 0;     // stop da entrada em andamento, aplicado assim que a posição abre
+double   g_stopSinal     = 0;     // além da mín/máx do candle sinal: perdeu o sinal antes de entrar
 bool     g_parcialFeita  = false;
 bool     g_avisouSemStop = false;
 int      g_retornoDir    = 0;     // modo retorno: 1 compra / -1 venda armada no candle atual
@@ -387,6 +392,21 @@ int OnInit()
       Print("Força do pivô precisa ser >= 1 e a janela maior que o dobro dela.");
       return INIT_PARAMETERS_INCORRECT;
      }
+   if(g_minUltima > g_minZerar - 5)
+     {
+      Print("A última entrada precisa ser pelo menos 5 minutos antes do horário de zerar (17:30).");
+      return INIT_PARAMETERS_INCORRECT;
+     }
+   if(InpStopMaxPts < 0 || (InpStopMaxPts > 0 && InpStopMaxPts < 100))
+     {
+      Print("Stop máximo: use 0 (stop no candle sinal) ou 100 pontos ou mais.");
+      return INIT_PARAMETERS_INCORRECT;
+     }
+   if(InpTamanhoMax < 0 || InpParcialPts < 0)
+     {
+      Print("Tamanho máximo do candle e parcial não podem ser negativos.");
+      return INIT_PARAMETERS_INCORRECT;
+     }
    if(!ParseHorariosBloqueados(InpHorariosBloq))
       return INIT_PARAMETERS_INCORRECT;
 
@@ -443,9 +463,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.55)");
+   Print(NOME_ROBO + " carregado (versão interna 1.56)");
 #else
-   Print(NOME_ROBO + " v1.55 carregado");
+   Print(NOME_ROBO + " v1.56 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -919,7 +939,8 @@ void Entrar(int direcao)
          Registrar(iTime(_Symbol, InpTimeframe, 0), "entrada cancelada: abriu além do stop");
          return;   // abriu com gap além do stop
         }
-      g_stopPlanejado   = stop;
+      g_stopSinal       = stop;
+      g_stopPlanejado   = LimitarStop(direcao, preco, stop);
       GuardarStop();
       g_precoReferencia = preco;
       if(direcao > 0)
@@ -948,7 +969,8 @@ void Entrar(int direcao)
    else
       recuo = (InpUnidadeRecuo == RECUO_PCT_CANDLE) ? (h1 - l1) * InpRecuo / 100.0 : InpRecuo;
 
-   g_stopPlanejado = stop;
+   g_stopSinal     = stop;
+   g_stopPlanejado = LimitarStop(direcao, abertura, stop);
    GuardarStop();
    g_retornoDir    = direcao;
    g_retornoPreco  = abertura;
@@ -990,6 +1012,17 @@ void Entrar(int direcao)
   }
 
 // Como a entrada foi feita, para o arquivo de operações.
+// Stop máximo: o stop fica além do candle sinal, mas a no máximo X pontos da
+// entrada. O sinal do candle grande continua valendo; só a perda máxima diminui.
+double LimitarStop(int direcao, double entrada, double stopCandle)
+  {
+   if(InpStopMaxPts <= 0 || entrada <= 0)
+      return stopCandle;
+   if(MathAbs(entrada - stopCandle) <= InpStopMaxPts)
+      return stopCandle;
+   return ArredondarPreco(entrada - direcao * InpStopMaxPts);
+  }
+
 string DescreverEntrada()
   {
    if(InpModoEntrada == ENTRADA_ABERTURA)
@@ -1030,11 +1063,12 @@ void MonitorarRetorno()
      }
 
    // Perdeu o candle sinal antes de entrar: setup invalidado.
-   if((g_retornoDir > 0 && bid <= g_stopPlanejado) || (g_retornoDir < 0 && ask >= g_stopPlanejado))
+   double stopSinal = (g_stopSinal > 0) ? g_stopSinal : g_stopPlanejado;
+   if((g_retornoDir > 0 && bid <= stopSinal) || (g_retornoDir < 0 && ask >= stopSinal))
      {
       Registrar(iTime(_Symbol, InpTimeframe, 0),
                 StringFormat("retorno cancelado: perdeu o candle sinal antes de entrar (bid %.0f ask %.0f stop %.0f)",
-                             bid, ask, g_stopPlanejado));
+                             bid, ask, stopSinal));
       CancelarPendentes();
       g_retornoDir = 0;
       return;
