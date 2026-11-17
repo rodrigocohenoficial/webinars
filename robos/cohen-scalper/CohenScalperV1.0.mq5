@@ -3,8 +3,8 @@
 //| O nome deste arquivo é o nome que o aluno vê no MetaTrader.       |
 //| Compile ESTE arquivo (F7); o .ex5 gerado é o que vai para o aluno.|
 //| A regra de entrada fica fixa. O aluno ajusta: contratos, meta e  |
-//| limite do dia em R$, parcial, alvo, stop máximo, tamanho máximo   |
-//| do candle e última entrada. A licença vem só do painel online,    |
+//| limite do dia em R$, parcial, alvo, tamanho máximo do candle e    |
+//| última entrada. A licença vem só do painel online,                |
 //| pelo número da conta (sem chave);                                 |
 //| não roda no testador e só aceita o contrato vigente do WIN.       |
 //| Precisa na mesma pasta: CohenScalper.mq5, CohenLicenca.mqh,       |

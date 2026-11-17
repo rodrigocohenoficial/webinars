@@ -6,8 +6,8 @@
 //+------------------------------------------------------------------+
 // Versão do aluno: compile o arquivo do aluno, que define VERSAO_ALUNO e o nome
 // do robô antes de incluir este. Nela a regra de entrada fica fixa; o aluno
-// ajusta só contratos, meta/limite do dia em R$, parcial, alvo, stop máximo,
-// tamanho máximo do candle e última entrada (AJUSTE). Os logs, os comentários
+// ajusta só contratos, meta/limite do dia em R$, parcial, alvo, tamanho
+// máximo do candle e última entrada (AJUSTE). Os logs, os comentários
 // das ordens e a descrição não mostram a regra.
 #ifdef VERSAO_ALUNO
    #ifndef NOME_ROBO
@@ -155,7 +155,7 @@ AJUSTE double              InpParcialPts      = 60;               // Parcial (po
 PARAM double               InpParcialPct      = 50;               // Tamanho da parcial (% da posição)
 PARAM bool                 InpZeroAposParcial = true;             // Stop no 0x0 ao bater a parcial
 AJUSTE double              InpAlvoPts         = 80;               // Alvo final (pontos)
-AJUSTE double              InpStopMaxPts      = 0;                // Stop máximo (pontos; 0 = stop no candle sinal, sem limite)
+PARAM double               InpStopMaxPts      = 0;                // Stop máximo (pontos; 0 = stop no candle sinal, sem limite)
 PARAM bool                 InpAlvoLimitado    = true;             // Alvo final como ordem limitada no livro (sai no preço do alvo)
 PARAM string               InpSaidas          = "";               // Várias saídas: pontos separados por vírgula, ex.: 30,50,80,150 (vazio = parcial e alvo acima)
 PARAM ENUM_SAIDAS_LISTA    InpSaidasLista     = SAIDAS_TEXTO;     // Várias saídas: lista pronta (para otimizar; "texto" usa o campo acima)
