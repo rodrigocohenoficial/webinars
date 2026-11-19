@@ -28,7 +28,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.56"
+#property version   "1.57"
 
 #include <Trade\Trade.mqh>
 
@@ -43,7 +43,7 @@
 // segredo fica no CohenLicencaSegredo.mqh, fora do git.
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "2.0"
+#define LIC_VERSAO "2.1"
 #include "CohenLicencaOnline.mqh"
 
 // Liga e desliga pelo Trader Nation Terminal (app de mesa), pela pasta comum
@@ -58,7 +58,7 @@
 #define LIC_SO_REPORTE
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "2.0"
+#define LIC_VERSAO "2.1"
 #include "CohenLicencaOnline.mqh"
 #endif
 
@@ -463,9 +463,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.56)");
+   Print(NOME_ROBO + " carregado (versão interna 1.57)");
 #else
-   Print(NOME_ROBO + " v1.56 carregado");
+   Print(NOME_ROBO + " v1.57 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -715,37 +715,16 @@ void NovoCandle(datetime abertura)
       return;
      }
 
-   double pontosDia;
-   int    operacoes, stops;
-   ResultadoDoDia(pontosDia, operacoes, stops);
-   if(InpMetaDiaPts > 0 && pontosDia >= InpMetaDiaPts)
-     {
-      Registrar(abertura, StringFormat("sem entrada: meta do dia atingida (%.0f pts)", pontosDia));
-      return;
-     }
-   if(InpLossDiaPts > 0 && pontosDia <= -InpLossDiaPts)
-     {
-      Registrar(abertura, StringFormat("sem entrada: loss do dia atingido (%.0f pts)", pontosDia));
-      return;
-     }
-   if(InpMaxOperacoes > 0 && operacoes >= InpMaxOperacoes)
-     {
-      Registrar(abertura, StringFormat("sem entrada: máximo de %d operações no dia", operacoes));
-      return;
-     }
-   if(InpMaxStopsDia > 0 && stops >= InpMaxStopsDia)
-     {
-      Registrar(abertura, StringFormat("sem entrada: %d stops no dia", stops));
-      return;
-     }
-   string encerrado = MotivoDiaEncerrado();
-   if(encerrado != "")
+   // Parou por hoje (stops, perda ou meta do dia): avisa uma vez no Experts e
+   // mostra no gráfico, para ninguém achar que o robô travou.
+   string parado = MotivoParadoHoje();
+   if(parado != "")
      {
       datetime hoje = InicioDoDia(TimeCurrent());
       if(g_diaEncerradoAvisado != hoje)
-         Print(NOME_ROBO + ": " + encerrado + ". Sem novas entradas hoje.");
+         Print(NOME_ROBO + ": parado por hoje (" + parado + "). Volta a operar no próximo pregão.");
       g_diaEncerradoAvisado = hoje;
-      Registrar(abertura, "sem entrada: " + encerrado);
+      Registrar(abertura, "sem entrada: " + parado);
       return;
      }
 
@@ -2141,9 +2120,9 @@ void MostrarLicenca()
                 (pode ? StringFormat("liberado, %d contratos (%s)", efetivo, motivo) : "parado (" + motivo + ")");
    if(!Comando_Ligado())
       txt += "\nDesligado pelo Trader Nation Terminal";
-   string encerrado = MotivoDiaEncerrado();
-   if(encerrado != "")
-      txt += "\nDia encerrado: " + encerrado;
+   string parado = MotivoParadoHoje();
+   if(parado != "")
+      txt += "\nParado por hoje: " + parado + ". Volta no próximo pregão.";
    Comando_Aviso(pode ? "licença: " + motivo : "parado: " + motivo);
    string aviso = LicOnline_Aviso();
    if(aviso != "")
@@ -2495,6 +2474,24 @@ double ResultadoDoDiaReais()
                HistoryDealGetDouble(deal, DEAL_SWAP) + HistoryDealGetDouble(deal, DEAL_FEE);
      }
    return reais;
+  }
+
+// Por que o robô não abre mais operação hoje ("" = pode abrir): limites do dia
+// em pontos, operações e stops, e a meta/limite em R$.
+string MotivoParadoHoje()
+  {
+   double pontosDia;
+   int    operacoes, stops;
+   ResultadoDoDia(pontosDia, operacoes, stops);
+   if(InpMetaDiaPts > 0 && pontosDia >= InpMetaDiaPts)
+      return StringFormat("meta do dia atingida, +%.0f pts", pontosDia);
+   if(InpLossDiaPts > 0 && pontosDia <= -InpLossDiaPts)
+      return StringFormat("limite de perda do dia atingido, %.0f pts", pontosDia);
+   if(InpMaxOperacoes > 0 && operacoes >= InpMaxOperacoes)
+      return StringFormat("máximo de %d operações no dia", operacoes);
+   if(InpMaxStopsDia > 0 && stops >= InpMaxStopsDia)
+      return StringFormat("%d stops no dia", stops);
+   return MotivoDiaEncerrado();
   }
 
 // Meta de ganho ou limite de perda do dia em R$ atingidos: o robô não abre
