@@ -102,7 +102,10 @@ enum ENUM_SAIDAS_LISTA
    SAIDAS_60_120       = 8,   // 60,120
    SAIDAS_60_100_150   = 9,   // 60,100,150
    SAIDAS_50_80_120_200 = 10, // 50,80,120,200
-   SAIDAS_50_100_150_200 = 11 // 50,100,150,200
+   SAIDAS_50_100_150_200 = 11, // 50,100,150,200
+   SAIDAS_UNICA_50     = 12,  // 50 (saída única)
+   SAIDAS_UNICA_70     = 13,  // 70 (saída única)
+   SAIDAS_UNICA_100    = 14   // 100 (saída única)
   };
 
 enum ENUM_FILTRO_TENDENCIA
@@ -1593,6 +1596,9 @@ string TextoDaLista(ENUM_SAIDAS_LISTA lista)
       case SAIDAS_60_100_150:   return "60,100,150";
       case SAIDAS_50_80_120_200: return "50,80,120,200";
       case SAIDAS_50_100_150_200: return "50,100,150,200";
+      case SAIDAS_UNICA_50:     return "50";
+      case SAIDAS_UNICA_70:     return "70";
+      case SAIDAS_UNICA_100:    return "100";
       default:                  return "";
      }
   }
