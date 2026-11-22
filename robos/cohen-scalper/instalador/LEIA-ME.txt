@@ -39,9 +39,13 @@ AJUSTES (aba Parametros, ao arrastar o robo)
 - Meta de ganho / Limite de perda do dia (R$): total da conta. 0 = desligado.
 - Parcial e Alvo final (pontos): padrao 60 e 80. Alternativa testada: 50 e 70
   (ganha menos por operacao, acerta mais e teve queda menor nos testes).
-- Stop maximo (pontos): padrao 0 = stop alem do candle anterior, como sempre.
-  Com 400, o stop fica no candle anterior, mas nunca a mais de 400 pontos da
-  entrada (candle pequeno continua com o stop dele). Use 0 ou 100 ou mais.
+- Stop (pontos): padrao 0 = stop alem do candle anterior, como sempre.
+  Use 0 ou 100 ou mais.
+- Tipo de stop (vale quando Stop > 0):
+  "O menor: candle anterior ou os pontos" (padrao): com 400, o stop fica no
+  candle anterior, mas nunca a mais de 400 pontos da entrada.
+  "Sempre os pontos": com 400, o stop fica sempre a 400 pontos da entrada,
+  qualquer que seja o candle.
 - Tamanho maximo do candle sinal (pontos): padrao 1000. Candle maior que
   isso nao entra. 0 = sem limite.
 - Ultima entrada (HHMM): padrao 1300 (13h). Pode ir ate 1725; o robo zera

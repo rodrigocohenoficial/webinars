@@ -6,7 +6,7 @@
 //+------------------------------------------------------------------+
 // Versão do aluno: compile o arquivo do aluno, que define VERSAO_ALUNO e o nome
 // do robô antes de incluir este. Nela a regra de entrada fica fixa; o aluno
-// ajusta só contratos, meta/limite do dia em R$, parcial, alvo, stop máximo,
+// ajusta só contratos, meta/limite do dia em R$, parcial, alvo, stop e tipo,
 // tamanho máximo do candle e última entrada (AJUSTE). Os logs, os comentários
 // das ordens e a descrição não mostram a regra.
 #ifdef VERSAO_ALUNO
@@ -28,7 +28,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.59"
+#property version   "1.60"
 
 #include <Trade\Trade.mqh>
 
@@ -108,6 +108,12 @@ enum ENUM_SAIDAS_LISTA
    SAIDAS_UNICA_100    = 14   // 100 (saída única)
   };
 
+enum ENUM_TIPO_STOP
+  {
+   STOP_MENOR = 0,   // O menor: candle anterior ou os pontos
+   STOP_FIXO  = 1    // Sempre os pontos
+  };
+
 enum ENUM_FILTRO_TENDENCIA
   {
    TEND_DESLIGADO    = 0,   // Desligado (qualquer direção)
@@ -162,8 +168,8 @@ AJUSTE double              InpParcialPts      = 60;               // Parcial (po
 PARAM double               InpParcialPct      = 50;               // Tamanho da parcial (% da posição)
 PARAM bool                 InpZeroAposParcial = true;             // Stop no 0x0 ao bater a parcial
 AJUSTE double              InpAlvoPts         = 80;               // Alvo final (pontos)
-PARAM double               InpStopFixoPts     = 0;                // Stop fixo (pontos da entrada; 0 = usa o candle sinal). Tem prioridade sobre o stop máximo
-AJUSTE double              InpStopMaxPts      = 0;                // Stop máximo (pontos; 0 = além do candle anterior, sem limite)
+AJUSTE double              InpStopPts         = 0;                // Stop (pontos; 0 = além do candle anterior)
+AJUSTE ENUM_TIPO_STOP      InpTipoStop        = STOP_MENOR;       // Tipo de stop (vale quando Stop > 0)
 PARAM bool                 InpAlvoLimitado    = true;             // Alvo final como ordem limitada no livro (sai no preço do alvo)
 PARAM string               InpSaidas          = "";               // Várias saídas: pontos separados por vírgula, ex.: 30,50,80,150 (vazio = parcial e alvo acima)
 PARAM ENUM_SAIDAS_LISTA    InpSaidasLista     = SAIDAS_TEXTO;     // Várias saídas: lista pronta (para otimizar; "texto" usa o campo acima)
@@ -405,14 +411,9 @@ int OnInit()
       Print("A última entrada precisa ser pelo menos 5 minutos antes do horário de zerar (17:30).");
       return INIT_PARAMETERS_INCORRECT;
      }
-   if(InpStopFixoPts < 0 || (InpStopFixoPts > 0 && InpStopFixoPts < 100))
+   if(InpStopPts < 0 || (InpStopPts > 0 && InpStopPts < 100))
      {
-      Print("Stop fixo: use 0 (stop no candle sinal) ou 100 pontos ou mais.");
-      return INIT_PARAMETERS_INCORRECT;
-     }
-   if(InpStopMaxPts < 0 || (InpStopMaxPts > 0 && InpStopMaxPts < 100))
-     {
-      Print("Stop máximo: use 0 (stop no candle sinal) ou 100 pontos ou mais.");
+      Print("Stop: use 0 (além do candle anterior) ou 100 pontos ou mais.");
       return INIT_PARAMETERS_INCORRECT;
      }
    if(InpTamanhoMax < 0 || InpParcialPts < 0)
@@ -476,9 +477,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.59)");
+   Print(NOME_ROBO + " carregado (versão interna 1.60)");
 #else
-   Print(NOME_ROBO + " v1.59 carregado");
+   Print(NOME_ROBO + " v1.60 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -1004,17 +1005,18 @@ void Entrar(int direcao)
   }
 
 // Como a entrada foi feita, para o arquivo de operações.
-// Stop máximo: o stop fica além do candle sinal, mas a no máximo X pontos da
-// entrada. O sinal do candle grande continua valendo; só a perda máxima diminui.
+// Stop em pontos (0 = além do candle anterior, como sempre):
+// "o menor": fica no candle anterior, mas a no máximo X pontos da entrada;
+// "sempre os pontos": X pontos da entrada, qualquer que seja o candle.
+// O sinal continua sendo cancelado se o preço passar do candle antes de entrar.
 double LimitarStop(int direcao, double entrada, double stopCandle)
   {
-   if(InpStopFixoPts > 0 && entrada > 0)
-      return ArredondarPreco(entrada - direcao * InpStopFixoPts);   // stop fixo, qualquer que seja o candle
-   if(InpStopMaxPts <= 0 || entrada <= 0)
+   if(InpStopPts <= 0 || entrada <= 0)
       return stopCandle;
-   if(MathAbs(entrada - stopCandle) <= InpStopMaxPts)
-      return stopCandle;
-   return ArredondarPreco(entrada - direcao * InpStopMaxPts);
+   double emPontos = ArredondarPreco(entrada - direcao * InpStopPts);
+   if(InpTipoStop == STOP_FIXO)
+      return emPontos;
+   return (MathAbs(entrada - stopCandle) <= InpStopPts) ? stopCandle : emPontos;
   }
 
 string DescreverEntrada()
