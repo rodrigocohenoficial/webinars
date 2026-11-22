@@ -28,7 +28,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.57"
+#property version   "1.58"
 
 #include <Trade\Trade.mqh>
 
@@ -98,7 +98,11 @@ enum ENUM_SAIDAS_LISTA
    SAIDAS_50_70_90     = 4,   // 50,70,90
    SAIDAS_50_60_70_80  = 5,   // 50,60,70,80
    SAIDAS_50_70_90_110 = 6,   // 50,70,90,110
-   SAIDAS_50_A_100     = 7    // 50,60,70,80,90,100
+   SAIDAS_50_A_100     = 7,   // 50,60,70,80,90,100
+   SAIDAS_60_120       = 8,   // 60,120
+   SAIDAS_60_100_150   = 9,   // 60,100,150
+   SAIDAS_50_80_120_200 = 10, // 50,80,120,200
+   SAIDAS_50_100_150_200 = 11 // 50,100,150,200
   };
 
 enum ENUM_FILTRO_TENDENCIA
@@ -463,9 +467,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.57)");
+   Print(NOME_ROBO + " carregado (versão interna 1.58)");
 #else
-   Print(NOME_ROBO + " v1.57 carregado");
+   Print(NOME_ROBO + " v1.58 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -1585,6 +1589,10 @@ string TextoDaLista(ENUM_SAIDAS_LISTA lista)
       case SAIDAS_50_60_70_80:  return "50,60,70,80";
       case SAIDAS_50_70_90_110: return "50,70,90,110";
       case SAIDAS_50_A_100:     return "50,60,70,80,90,100";
+      case SAIDAS_60_120:       return "60,120";
+      case SAIDAS_60_100_150:   return "60,100,150";
+      case SAIDAS_50_80_120_200: return "50,80,120,200";
+      case SAIDAS_50_100_150_200: return "50,100,150,200";
       default:                  return "";
      }
   }
