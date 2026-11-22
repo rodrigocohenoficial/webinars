@@ -162,6 +162,7 @@ AJUSTE double              InpParcialPts      = 60;               // Parcial (po
 PARAM double               InpParcialPct      = 50;               // Tamanho da parcial (% da posição)
 PARAM bool                 InpZeroAposParcial = true;             // Stop no 0x0 ao bater a parcial
 AJUSTE double              InpAlvoPts         = 80;               // Alvo final (pontos)
+PARAM double               InpStopFixoPts     = 0;                // Stop fixo (pontos da entrada; 0 = usa o candle sinal). Tem prioridade sobre o stop máximo
 PARAM double               InpStopMaxPts      = 0;                // Stop máximo (pontos; 0 = stop no candle sinal, sem limite)
 PARAM bool                 InpAlvoLimitado    = true;             // Alvo final como ordem limitada no livro (sai no preço do alvo)
 PARAM string               InpSaidas          = "";               // Várias saídas: pontos separados por vírgula, ex.: 30,50,80,150 (vazio = parcial e alvo acima)
@@ -402,6 +403,11 @@ int OnInit()
    if(g_minUltima > g_minZerar - 5)
      {
       Print("A última entrada precisa ser pelo menos 5 minutos antes do horário de zerar (17:30).");
+      return INIT_PARAMETERS_INCORRECT;
+     }
+   if(InpStopFixoPts < 0 || (InpStopFixoPts > 0 && InpStopFixoPts < 100))
+     {
+      Print("Stop fixo: use 0 (stop no candle sinal) ou 100 pontos ou mais.");
       return INIT_PARAMETERS_INCORRECT;
      }
    if(InpStopMaxPts < 0 || (InpStopMaxPts > 0 && InpStopMaxPts < 100))
@@ -1002,6 +1008,8 @@ void Entrar(int direcao)
 // entrada. O sinal do candle grande continua valendo; só a perda máxima diminui.
 double LimitarStop(int direcao, double entrada, double stopCandle)
   {
+   if(InpStopFixoPts > 0 && entrada > 0)
+      return ArredondarPreco(entrada - direcao * InpStopFixoPts);   // stop fixo, qualquer que seja o candle
    if(InpStopMaxPts <= 0 || entrada <= 0)
       return stopCandle;
    if(MathAbs(entrada - stopCandle) <= InpStopMaxPts)
