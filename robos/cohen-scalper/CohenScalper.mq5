@@ -6,8 +6,8 @@
 //+------------------------------------------------------------------+
 // Versão do aluno: compile o arquivo do aluno, que define VERSAO_ALUNO e o nome
 // do robô antes de incluir este. Nela a regra de entrada fica fixa; o aluno
-// ajusta só contratos, meta/limite do dia em R$, parcial, alvo, tamanho
-// máximo do candle e última entrada (AJUSTE). Os logs, os comentários
+// ajusta só contratos, meta/limite do dia em R$, parcial, alvo, stop máximo,
+// tamanho máximo do candle e última entrada (AJUSTE). Os logs, os comentários
 // das ordens e a descrição não mostram a regra.
 #ifdef VERSAO_ALUNO
    #ifndef NOME_ROBO
@@ -28,7 +28,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.58"
+#property version   "1.59"
 
 #include <Trade\Trade.mqh>
 
@@ -43,7 +43,7 @@
 // segredo fica no CohenLicencaSegredo.mqh, fora do git.
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "2.1"
+#define LIC_VERSAO "2.2"
 #include "CohenLicencaOnline.mqh"
 
 // Liga e desliga pelo Trader Nation Terminal (app de mesa), pela pasta comum
@@ -58,7 +58,7 @@
 #define LIC_SO_REPORTE
 #define LIC_URL    "https://robos.tradernation.com.br"
 #define LIC_ROBO   "CohenScalper"
-#define LIC_VERSAO "2.1"
+#define LIC_VERSAO "2.2"
 #include "CohenLicencaOnline.mqh"
 #endif
 
@@ -163,7 +163,7 @@ PARAM double               InpParcialPct      = 50;               // Tamanho da 
 PARAM bool                 InpZeroAposParcial = true;             // Stop no 0x0 ao bater a parcial
 AJUSTE double              InpAlvoPts         = 80;               // Alvo final (pontos)
 PARAM double               InpStopFixoPts     = 0;                // Stop fixo (pontos da entrada; 0 = usa o candle sinal). Tem prioridade sobre o stop máximo
-PARAM double               InpStopMaxPts      = 0;                // Stop máximo (pontos; 0 = stop no candle sinal, sem limite)
+AJUSTE double              InpStopMaxPts      = 0;                // Stop máximo (pontos; 0 = além do candle anterior, sem limite)
 PARAM bool                 InpAlvoLimitado    = true;             // Alvo final como ordem limitada no livro (sai no preço do alvo)
 PARAM string               InpSaidas          = "";               // Várias saídas: pontos separados por vírgula, ex.: 30,50,80,150 (vazio = parcial e alvo acima)
 PARAM ENUM_SAIDAS_LISTA    InpSaidasLista     = SAIDAS_TEXTO;     // Várias saídas: lista pronta (para otimizar; "texto" usa o campo acima)
@@ -476,9 +476,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.58)");
+   Print(NOME_ROBO + " carregado (versão interna 1.59)");
 #else
-   Print(NOME_ROBO + " v1.58 carregado");
+   Print(NOME_ROBO + " v1.59 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
