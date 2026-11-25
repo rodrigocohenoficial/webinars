@@ -28,7 +28,7 @@
    #property copyright   "Rodrigo Cohen"
    #property description "Candle de força + entrada no candle seguinte. Parcial, 0x0 e alvo final."
 #endif
-#property version   "1.60"
+#property version   "1.61"
 
 #include <Trade\Trade.mqh>
 
@@ -310,6 +310,8 @@ bool     g_posReentrada  = false;      // a posição acompanhada é uma reentra
 
 // Saídas sem corrida com o servidor (v1.28).
 double   g_volAntesParcial = 0;        // volume quando a parcial foi enviada
+double   g_volBase       = 0;          // volume da posição depois que a entrada terminou (base das saídas)
+datetime g_tEsperaEntrada = 0;         // desde quando espera o resto da ordem de entrada
 datetime g_tParcial      = 0;          // quando a parcial foi enviada
 datetime g_tCruzou       = 0;          // desde quando o preço está além do stop/alvo do servidor
 int      g_posDir        = 0;          // direção da posição acompanhada
@@ -477,9 +479,9 @@ int OnInit()
 
    AbrirArquivo();
 #ifdef VERSAO_ALUNO
-   Print(NOME_ROBO + " carregado (versão interna 1.60)");
+   Print(NOME_ROBO + " carregado (versão interna 1.61)");
 #else
-   Print(NOME_ROBO + " v1.60 carregado");
+   Print(NOME_ROBO + " v1.61 carregado");
 #endif
    return INIT_SUCCEEDED;
   }
@@ -1199,6 +1201,8 @@ void GerenciarPosicao(int minutoAgora)
       g_posId = 0;
       g_parcialFeita = false;
       g_volAntesParcial = 0;
+      g_volBase = 0;
+      g_tEsperaEntrada = 0;
       g_tCruzou = 0;
       g_falhasParcial = 0;
       g_tSumiuParcial = 0;
@@ -1231,6 +1235,8 @@ void GerenciarPosicao(int minutoAgora)
             g_tUltimoFechamento = TimeCurrent();
             g_parcialFeita = false;
             g_volAntesParcial = 0;
+            g_volBase = 0;
+            g_tEsperaEntrada = 0;
             g_falhasParcial = 0;
             g_tSumiuParcial = 0;
             CancelarParcial();
@@ -1359,9 +1365,30 @@ void GerenciarPosicao(int minutoAgora)
      }
    g_tSemStop = 0;
 
+   // Entrada executando em partes (ex.: 15 de 20): espera a ordem de entrada
+   // terminar antes de colocar parcial e alvo, que são calculados sobre o volume
+   // final. Em 25/11 (conta real, 20 contratos) o alvo saiu com 5 em vez de 10 e
+   // sobraram contratos sem saída no livro. O stop já está na posição. Se a ordem
+   // de entrada não terminar em 10 s, as saídas usam o volume que executou.
+   if(g_volBase <= 0)
+     {
+      if(OrdemDeEntradaPendente(dir))
+        {
+         if(g_tEsperaEntrada == 0)
+            g_tEsperaEntrada = TimeCurrent();
+         if(TimeCurrent() - g_tEsperaEntrada < 10)
+            return;
+        }
+      g_volBase = MathMin(volume, volCheio);
+      if(g_volBase < volCheio)
+         PrintFormat("%s: a entrada executou %.0f de %.0f contratos; parcial e alvo sobre %.0f.",
+                     NOME_ROBO, g_volBase, volCheio, g_volBase);
+     }
+   double volRef = g_volBase;
+
    if(g_mN > 0)
      {
-      GerenciarSaidas(ticket, tipo, dir, volume, preco, sl, bid, volCheio);
+      GerenciarSaidas(ticket, tipo, dir, volume, preco, sl, bid, volRef);
       return;
      }
 
@@ -1371,11 +1398,17 @@ void GerenciarPosicao(int minutoAgora)
      {
       if(g_ticketParcial != 0)
         {
-         if(volume < volCheio)
+         if(volume < volRef)
            {
-            if(DETALHES) PrintFormat("Parcial executada pela ordem limitada: posição de %.0f para %.0f contratos", volCheio, volume);
-            CancelarParcial();   // o que sobrou da ordem, se ela executou só em parte
-            g_parcialFeita = true;
+            // A parcial executa em partes no livro (1, depois 5, depois 3...).
+            // Só conta como feita quando sai inteira; até lá a ordem continua
+            // no livro. Antes, o robô cancelava o resto no primeiro contrato.
+            if(volume <= volRef - AjustarVolume(volRef * InpParcialPct / 100.0))
+              {
+               if(DETALHES) PrintFormat("Parcial executada pela ordem limitada: posição de %.0f para %.0f contratos", volRef, volume);
+               g_ticketParcial = 0;
+               g_parcialFeita = true;
+              }
            }
          else if(!OrderSelect(g_ticketParcial))
            {
@@ -1408,9 +1441,9 @@ void GerenciarPosicao(int minutoAgora)
               }
            }
         }
-      else if(g_volAntesParcial == 0 && volume >= volCheio && g_falhasParcial < 3)
+      else if(g_volAntesParcial == 0 && volume >= volRef && g_falhasParcial < 3)
         {
-         double volParc  = AjustarVolume(volCheio * InpParcialPct / 100.0);
+         double volParc  = AjustarVolume(volRef * InpParcialPct / 100.0);
          double precoPar = ArredondarPreco(preco + dir * InpParcialPts);
          if(volParc > 0 && volParc < volume && (precoPar - bid) * dir > 0)
            {
@@ -1446,7 +1479,7 @@ void GerenciarPosicao(int minutoAgora)
         }
       else if(!g_alvoColocado)
         {
-         double volParc = (usaParcial && !g_parcialFeita) ? AjustarVolume(volCheio * InpParcialPct / 100.0) : 0;
+         double volParc = (usaParcial && !g_parcialFeita) ? AjustarVolume(volRef * InpParcialPct / 100.0) : 0;
          double volAlvo = AjustarVolume(volume - volParc);
          if(volAlvo > 0 && (alvo - bid) * dir > 0)
            {
@@ -1568,7 +1601,7 @@ void GerenciarPosicao(int minutoAgora)
    if((bid - (preco + dir * InpParcialPts)) * dir < 0)
       return;
 
-   double volParcial = AjustarVolume(volCheio * InpParcialPct / 100.0);
+   double volParcial = AjustarVolume(volRef * InpParcialPct / 100.0);
    if(volParcial <= 0 || volParcial >= volume)
      {
       g_parcialFeita = true;   // posição já reduzida (robô reiniciado): segue como depois da parcial
@@ -2355,6 +2388,26 @@ void CancelarPendentes()
       if((ulong)OrderGetInteger(ORDER_MAGIC) == InpMagic)
          trade.OrderDelete(t);
      }
+  }
+
+// Resto da ordem de entrada ainda no livro: ordem do robô, do mesmo lado da
+// posição (as saídas são do lado contrário).
+bool OrdemDeEntradaPendente(int dir)
+  {
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      ulong t = OrderGetTicket(i);
+      if(t == 0 || OrderGetString(ORDER_SYMBOL) != _Symbol || (ulong)OrderGetInteger(ORDER_MAGIC) != InpMagic)
+         continue;
+      if(t == g_ticketParcial || t == g_ticketAlvo || EhOrdemDeSaida(t))
+         continue;
+      long tp = OrderGetInteger(ORDER_TYPE);
+      bool compra = (tp == ORDER_TYPE_BUY_STOP || tp == ORDER_TYPE_BUY_LIMIT || tp == ORDER_TYPE_BUY_STOP_LIMIT);
+      bool venda  = (tp == ORDER_TYPE_SELL_STOP || tp == ORDER_TYPE_SELL_LIMIT || tp == ORDER_TYPE_SELL_STOP_LIMIT);
+      if((dir > 0 && compra) || (dir < 0 && venda))
+         return true;
+     }
+   return false;
   }
 
 void CancelarAlvo()
